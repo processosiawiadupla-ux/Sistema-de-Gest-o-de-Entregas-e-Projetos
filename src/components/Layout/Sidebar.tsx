@@ -2,14 +2,15 @@ import React from 'react';
 import { 
   LayoutDashboard, 
   Users, 
+  FolderKanban, 
   CalendarDays, 
   BarChart3, 
   User, 
-  HelpCircle, 
   Settings, 
   LogOut,
   PlusCircle
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 interface SidebarProps {
   currentTab: string;
@@ -18,6 +19,8 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, onOpenNewDelivery }) => {
+  const { user, logout } = useAuth();
+
   return (
     <aside className="w-64 bg-[#0A192F] text-slate-300 flex flex-col h-screen justify-between border-r border-slate-800">
       {/* Topo: Logótipo e Botão de Ação */}
@@ -34,7 +37,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, onO
 
         <button 
           onClick={onOpenNewDelivery}
-          className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 transition-all mb-6 text-sm"
+          className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 transition-all mb-6 text-sm cursor-pointer"
         >
           <PlusCircle className="w-4 h-4" />
           <span>Lançar Entrega</span>
@@ -53,9 +56,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, onO
           </button>
 
           <button 
-            onClick={() => setCurrentTab('team')}
+            onClick={() => setCurrentTab('equipe')}
             className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-              currentTab === 'team' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'hover:bg-slate-800/60 text-slate-300'
+              currentTab === 'equipe' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'hover:bg-slate-800/60 text-slate-300'
             }`}
           >
             <Users className="w-4 h-4" />
@@ -63,9 +66,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, onO
           </button>
 
           <button 
-            onClick={() => setCurrentTab('deliveries')}
+            onClick={() => setCurrentTab('projetos')}
             className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-              currentTab === 'deliveries' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'hover:bg-slate-800/60 text-slate-300'
+              currentTab === 'projetos' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'hover:bg-slate-800/60 text-slate-300'
+            }`}
+          >
+            <FolderKanban className="w-4 h-4" />
+            <span>Projetos</span>
+          </button>
+
+          <button 
+            onClick={() => setCurrentTab('entregas')}
+            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+              currentTab === 'entregas' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'hover:bg-slate-800/60 text-slate-300'
             }`}
           >
             <CalendarDays className="w-4 h-4" />
@@ -73,9 +86,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, onO
           </button>
 
           <button 
-            onClick={() => setCurrentTab('reports')}
+            onClick={() => setCurrentTab('relatorios')}
             className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-              currentTab === 'reports' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'hover:bg-slate-800/60 text-slate-300'
+              currentTab === 'relatorios' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'hover:bg-slate-800/60 text-slate-300'
             }`}
           >
             <BarChart3 className="w-4 h-4" />
@@ -88,39 +101,39 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, onO
       <div className="p-4 border-t border-slate-800/80 space-y-1">
         <button 
           onClick={() => setCurrentTab('profile')}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium hover:bg-slate-800 text-slate-300 transition-colors"
+          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+            currentTab === 'profile' ? 'bg-blue-600/20 text-blue-400' : 'hover:bg-slate-800 text-slate-300'
+          }`}
         >
           <User className="w-4 h-4 text-slate-400" />
           <span>Meu perfil</span>
         </button>
-
         <button 
-          onClick={() => setCurrentTab('help')}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium hover:bg-slate-800 text-slate-300 transition-colors"
-        >
-          <HelpCircle className="w-4 h-4 text-slate-400" />
-          <span>Ajuda</span>
-        </button>
-
-        <button 
-          onClick={() => setCurrentTab('settings')}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium hover:bg-slate-800 text-slate-300 transition-colors"
+          onClick={() => setCurrentTab('configuracoes')}
+          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+            currentTab === 'configuracoes' ? 'bg-blue-600/20 text-blue-400' : 'hover:bg-slate-800 text-slate-300'
+          }`}
         >
           <Settings className="w-4 h-4 text-slate-400" />
           <span>Configurações</span>
         </button>
 
         <div className="pt-3 mt-2 border-t border-slate-800 flex items-center justify-between px-2">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center font-bold text-white text-xs">
-              NN
+          <div className="flex items-center gap-2.5 overflow-hidden">
+            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center font-bold text-white text-xs shrink-0">
+              {user?.name ? user.name.charAt(0).toUpperCase() : 'N'}
             </div>
             <div className="overflow-hidden">
-              <p className="text-xs font-medium text-white truncate">Naiara Nunes</p>
-              <p className="text-[10px] text-blue-400 font-semibold tracking-wider">ADMIN</p>
+              <p className="text-xs font-medium text-white truncate">{user?.name || 'Naiara Nunes'}</p>
+              <p className="text-[10px] text-blue-400 font-semibold tracking-wider">{user?.role || 'ADMIN'}</p>
             </div>
           </div>
-          <button className="text-slate-400 hover:text-red-400 transition-colors p-1.5 rounded-lg hover:bg-slate-800">
+          
+          <button 
+            onClick={logout}
+            title="Sair do sistema"
+            className="text-slate-400 hover:text-red-400 transition-colors p-1.5 rounded-lg hover:bg-slate-800 cursor-pointer shrink-0"
+          >
             <LogOut className="w-4 h-4" />
           </button>
         </div>

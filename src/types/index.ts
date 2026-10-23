@@ -12,31 +12,31 @@ export interface User {
   avatarUrl?: string;
 }
 
-// 2. Status do Projeto (Conforme o escopo do MVP)
+// 2. Status do Projeto (Amigável e legível para a UI)
 export type ProjectStatus = 
-  | 'NÃO_COMEÇADO' 
-  | 'EM_PROGRESSO' 
-  | 'ESPERANDO' 
-  | 'COMPLETO' 
-  | 'CANCELADO';
+  | 'Não iniciado' 
+  | 'Em andamento' 
+  | 'Aguardando' 
+  | 'Concluído' 
+  | 'Cancelado';
 
 // 3. Situação do Prazo / Entrega
 export type ScheduleStatus = 'ENTREGUE' | 'PROXIMO A VENCER' | 'EM ATRASO' | 'COMPLETO';
 
-// 4. Estrutura do Projeto
+// 4. Estrutura Completa do Projeto
 export interface Project {
   id: string;
   name: string;
   description: string;
-  ownerId: string;         // Responsável pelo projeto
-  ownerName?: string;
-  sector: string;          // Setor
-  startDate: string;       // Data de início (AAAA-MM-DD)
-  dueDate: string;         // Prazo final
+  ownerId?: string;        // ID do responsável
+  owner: string;          // Nome legível do responsável
+  department: string;     // Setor / Área
+  startDate: string;      // Data de início (AAAA-MM-DD)
+  dueDate: string;        // Prazo final
   status: ProjectStatus;
-  scheduleStatus: ScheduleStatus;
-  observations?: string;
-  createdAt: string;
+  scheduleStatus?: ScheduleStatus;
+  notes?: string;         // Observações gerais
+  createdAt?: string;
 }
 
 // 5. Etapas e Marcos Importantes do Projeto
@@ -84,6 +84,6 @@ export interface DashboardMetrics {
   delayedProjects: number;
   completedProjects: number;
   onTimeProjects: number;
-  onTimeCompletionRate: number; // Percentual ex: 85%
+  onTimeCompletionRate: number; // Percentual ex: 85
 }
 
