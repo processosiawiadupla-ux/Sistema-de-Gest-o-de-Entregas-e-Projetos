@@ -1,34 +1,19 @@
 import React, { useState } from 'react';
 import { FolderKanban, Plus, Calendar, User } from 'lucide-react';
-import type { Project, ProjectStatus } from '../../types';
+import type { ProjectStatus } from '../../types';
+import { useProjects, useCreateProject } from './useProjects';
 
-const initialProjects: Project[] = [
-  {
-    id: 'proj-1',
-    name: 'Migração de Servidores VPS',
-    description: 'Transferência da infraestrutura principal para a nova instância Hostinger.',
-    owner: 'Naiara Nunes',
-    department: 'Tecnologia',
-    startDate: '2026-10-01',
-    dueDate: '2026-11-15',
-    status: 'Em andamento',
-    notes: 'Acompanhar os logs de DNS durante a transição.',
-  },
-  {
-    id: 'proj-2',
-    name: 'Redesign do Portal de Entregas',
-    description: 'Atualização completa da interface visual e experiência do utilizador.',
-    owner: 'Carlos Silva',
-    department: 'Design & Produto',
-    startDate: '2026-10-10',
-    dueDate: '2026-12-01',
-    status: 'Não iniciado',
-    notes: 'Aguardando aprovação do manual de marca.',
-  },
-];
+// Converte 'AAAA-MM-DD' em 'DD/MM/AAAA' sem passar pelo fuso horário
+const formatDate = (date: string) => {
+  const [year, month, day] = date.split('-');
+  return `${day}/${month}/${year}`;
+};
 
 export const ProjetosPage: React.FC = () => {
-  const [projects, setProjects] = useState<Project[]>(initialProjects);
+  // Dados vindos do backend (via TanStack Query)
+  const { data: projects = [], isLoading, isError, error, refetch } = useProjects();
+  const createProject = useCreateProject();
+
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Estados do formulário de novo projeto
@@ -56,26 +41,7 @@ export const ProjetosPage: React.FC = () => {
     }
   };
 
-  const handleCreateProject = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name || !owner) return;
-
-    const newProj: Project = {
-      id: `proj-${Date.now()}`,
-      name,
-      description,
-      owner,
-      department,
-      startDate,
-      dueDate,
-      status,
-      notes,
-    };
-
-    setProjects([newProj, ...projects]);
-    setIsModalOpen(false);
-
-    // Limpar campos
+  const resetForm = () => {
     setName('');
     setDescription('');
     setOwner('');
@@ -84,6 +50,32 @@ export const ProjetosPage: React.FC = () => {
     setDueDate('');
     setStatus('Não iniciado');
     setNotes('');
+  };
+
+  const openModal = () => {
+    createProject.reset(); // limpa um erro antigo, se houver
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+  };
+
+  const handleCreateProject = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name || !owner) return;
+
+    // Por enquanto o backend só grava nome, descrição e status.
+    // Os demais campos entram no próximo passo.
+    createProject.mutate(
+      { name, description, status },
+      {
+        onSuccess: () => {
+          setIsModalOpen(false);
+          resetForm();
+        },
+      }
+    );
   };
 
   return (
@@ -101,13 +93,38 @@ export const ProjetosPage: React.FC = () => {
         </div>
 
         <button
-          onClick={() => setIsModalOpen(true)}
+          onClick={openModal}
           className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-medium text-sm px-4 py-2.5 rounded-xl shadow-lg shadow-blue-600/20 transition-all cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           <span>Novo Projeto</span>
         </button>
       </div>
+
+      {/* Carregando */}
+      {isLoading && (
+        <p className="text-sm text-slate-500">Carregando projetos...</p>
+      )}
+
+      {/* Erro */}
+      {isError && (
+        <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-2xl p-4 text-sm flex items-center justify-between gap-4">
+          <span>{error instanceof Error ? error.message : 'Ocorreu um erro ao carregar os projetos.'}</span>
+          <button
+            onClick={() => refetch()}
+            className="px-3 py-1.5 rounded-lg border border-rose-300 font-medium hover:bg-rose-100 cursor-pointer"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      )}
+
+      {/* Lista vazia */}
+      {!isLoading && !isError && projects.length === 0 && (
+        <p className="text-sm text-slate-500">
+          Nenhum projeto cadastrado ainda. Clique em "Novo Projeto" para começar.
+        </p>
+      )}
 
       {/* Grid de Cartões dos Projetos */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -130,11 +147,11 @@ export const ProjetosPage: React.FC = () => {
             <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-xs text-slate-500">
               <div className="flex items-center gap-1.5">
                 <User className="w-4 h-4 text-slate-400" />
-                <span className="font-medium text-slate-700 truncate">{proj.owner}</span>
+                <span className="font-medium text-slate-700 truncate">{proj.owner || 'Sem responsável'}</span>
               </div>
               <div className="flex items-center gap-1.5 justify-end">
                 <Calendar className="w-4 h-4 text-slate-400" />
-                <span>Prazo: {proj.dueDate ? new Date(proj.dueDate).toLocaleDateString('pt-BR') : 'Indefinido'}</span>
+                <span>Prazo: {proj.dueDate ? formatDate(proj.dueDate) : 'Indefinido'}</span>
               </div>
             </div>
           </div>
@@ -147,8 +164,8 @@ export const ProjetosPage: React.FC = () => {
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h2 className="text-lg font-bold text-slate-900">Cadastrar Novo Projeto</h2>
-              <button 
-                onClick={() => setIsModalOpen(false)}
+              <button
+                onClick={closeModal}
                 className="text-slate-400 hover:text-slate-600 text-sm font-bold p-1 cursor-pointer"
               >
                 ✕
@@ -268,19 +285,29 @@ export const ProjetosPage: React.FC = () => {
                 />
               </div>
 
+              {/* Erro ao salvar */}
+              {createProject.isError && (
+                <p className="text-sm text-rose-600">
+                  {createProject.error instanceof Error
+                    ? createProject.error.message
+                    : 'Erro ao salvar projeto'}
+                </p>
+              )}
+
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={closeModal}
                   className="px-4 py-2.5 rounded-xl border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-sm font-medium text-white shadow-lg shadow-blue-600/20 cursor-pointer"
+                  disabled={createProject.isPending}
+                  className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-sm font-medium text-white shadow-lg shadow-blue-600/20 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  Salvar Projeto
+                  {createProject.isPending ? 'Salvando...' : 'Salvar Projeto'}
                 </button>
               </div>
             </form>
