@@ -1,5 +1,8 @@
 import { Pool } from 'pg';
+import pg from 'pg'
 
+// Devolve colunas DATE como 'AAAA-MM-DD', sem conversão de fuso
+pg.types.setTypeParser(1082, (value) => value)
 // Configuração do Pool de conexões do PostgreSQL
 export const pool = new Pool({
   host: process.env.DB_HOST || 'localhost',

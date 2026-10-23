@@ -8,7 +8,7 @@ const __dirname = path.dirname(__filename);
 
 export const initializeDatabase = async () => {
   try {
-    const schemaPath = path.join(__dirname, 'schema.sql');
+    const schemaPath = path.join(__dirname, '../../schema.sql');  
     const sqlQuery = fs.readFileSync(schemaPath, 'utf8');
 
     await pool.query(sqlQuery);

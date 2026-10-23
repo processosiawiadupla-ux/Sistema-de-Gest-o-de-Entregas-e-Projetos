@@ -86,4 +86,3 @@ export interface DashboardMetrics {
   onTimeProjects: number;
   onTimeCompletionRate: number; // Percentual ex: 85
 }
-

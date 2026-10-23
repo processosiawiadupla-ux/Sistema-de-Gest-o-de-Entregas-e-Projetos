@@ -21,7 +21,7 @@ router.post('/projects', async (req, res) => {
     
     const query = `
       INSERT INTO projects (name, description, status) 
-      VALUES ($1, $2, $3) 
+      VALUES ($1, $2, COALESCE($3, 'not_started'))
       RETURNING *;
     `;
     
