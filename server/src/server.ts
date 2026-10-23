@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
-import { initializeDatabase } from './config/initDb';
-import projectRoutes from './routes/projectRoutes';
+import { initializeDatabase } from './config/initDb.js';
+import projectRoutes from './routes/projectRoutes.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
