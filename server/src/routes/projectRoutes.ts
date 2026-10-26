@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../config/database.js';
+import { createProjectSchema } from '../schemas/projectSchema.js';
 
 const router = Router();
 
@@ -16,12 +17,20 @@ router.get('/projects', async (_req, res) => {
 
 // Criar projeto
 router.post('/projects', async (req, res) => {
-  const { name, description, owner, department, start_date, due_date, status, notes } = req.body;
+  const parsed = createProjectSchema.safeParse(req.body);
 
-  if (!name) {
-    res.status(400).json({ message: 'O nome do projeto é obrigatório.' });
+  if (!parsed.success) {
+    res.status(400).json({
+      message: parsed.error.issues[0].message,
+      errors: parsed.error.issues.map((issue) => ({
+        field: issue.path.join('.'),
+        message: issue.message,
+      })),
+    });
     return;
   }
+
+  const { name, description, owner, department, start_date, due_date, status, notes } = parsed.data;
 
   const query = `
     INSERT INTO projects (name, description, owner, department, start_date, due_date, status, notes)
@@ -31,13 +40,13 @@ router.post('/projects', async (req, res) => {
 
   const values = [
     name,
-    description ?? null,
-    owner ?? null,
-    department ?? null,
+    description || null,
+    owner || null,
+    department || null,
     start_date ?? null,
     due_date ?? null,
     status ?? null,
-    notes ?? null,
+    notes || null,
   ];
 
   try {
