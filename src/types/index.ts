@@ -49,41 +49,28 @@ export interface ProjectStage {
   completed: boolean;
   assignedToId?: string;
 }
+// 6. Situação da entrega (calculada a partir do prazo e da conclusão, nunca guardada)
+export type DeliverySituation =
+  | 'NO PRAZO'
+  | 'EM RISCO'
+  | 'ATRASADO'
+  | 'CONCLUIDO'
+  | 'CONCLUIDO COM ATRASO';
 
-// 6. Entregas (Atividades vinculadas a setores e pessoas)
+// 6.1 Entregas (atividades atribuídas a pessoas, com ou sem projeto)
 export interface Delivery {
-  deadline: ReactNode;
   id: string;
   projectId?: string;
+  projectName?: string;
   title: string;
   description?: string;
-  assignedToId: string;
-  assignedToName?: string;
+  assignedToId?: string;
+  assignedToName: string;
+  assignedByName?: string;
   sector: string;
   dueDate: string;
-  scheduleStatus: ScheduleStatus;
   completed: boolean;
+  completedAt?: string;
   commentsCount: number;
-}
-
-// 7. Histórico de Alterações de Prazos/Datas (Auditoria)
-export interface DateChangeHistory {
-  id: string;
-  projectId: string;
-  previousDueDate: string;
-  newDueDate: string;
-  changedBy: string;
-  changedAt: string;
-  justification: string;
-}
-
-// 8. Indicadores Consolidados do Dashboard
-export interface DashboardMetrics {
-  totalProjects: number;
-  inProgressProjects: number;
-  waitingProjects: number;
-  delayedProjects: number;
-  completedProjects: number;
-  onTimeProjects: number;
-  onTimeCompletionRate: number; // Percentual ex: 85
+  createdAt?: string;
 }
