@@ -1,29 +1,38 @@
 import React from 'react';
-import { 
-  LayoutDashboard, 
-  Users, 
-  FolderKanban, 
-  CalendarDays, 
-  BarChart3, 
-  User, 
-  Settings, 
+import {
+  LayoutDashboard,
+  Users,
+  FolderKanban,
+  CalendarDays,
+  BarChart3,
+  User,
+  Settings,
   LogOut,
-  PlusCircle
+  PlusCircle,
+  UserPlus,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { canAssignDeliveries } from '../../lib/permissions';
 
 interface SidebarProps {
   currentTab: string;
   setCurrentTab: (tab: string) => void;
   onOpenNewDelivery: () => void;
+  onOpenAssignDelivery: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, onOpenNewDelivery }) => {
+export const Sidebar: React.FC<SidebarProps> = ({
+  currentTab,
+  setCurrentTab,
+  onOpenNewDelivery,
+  onOpenAssignDelivery,
+}) => {
   const { user, logout } = useAuth();
+  const showAssign = canAssignDeliveries(user?.role);
 
   return (
     <aside className="w-64 bg-[#0A192F] text-slate-300 flex flex-col h-screen justify-between border-r border-slate-800">
-      {/* Topo: Logótipo e Botão de Ação */}
+      {/* Topo: Logótipo e Botões de Ação */}
       <div className="p-6">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-blue-500/30">
@@ -35,17 +44,31 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, onO
           </div>
         </div>
 
-        <button 
-          onClick={onOpenNewDelivery}
-          className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 transition-all mb-6 text-sm cursor-pointer"
-        >
-          <PlusCircle className="w-4 h-4" />
-          <span>Lançar Entrega</span>
-        </button>
+        <div className="space-y-2 mb-6">
+          {/* Atribuir: só ADMIN e LIDER */}
+          {showAssign && (
+            <button
+              onClick={onOpenAssignDelivery}
+              className="w-full border border-blue-500/50 text-blue-300 hover:bg-blue-600/15 hover:text-white font-medium py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-all text-sm cursor-pointer"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>Atribuir Entrega</span>
+            </button>
+          )}
+
+          {/* Lançar: todos os papéis */}
+          <button
+            onClick={onOpenNewDelivery}
+            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 transition-all text-sm cursor-pointer"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>Lançar Entrega</span>
+          </button>
+        </div>
 
         {/* Menu de Navegação */}
         <nav className="space-y-1.5">
-          <button 
+          <button
             onClick={() => setCurrentTab('dashboard')}
             className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
               currentTab === 'dashboard' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'hover:bg-slate-800/60 text-slate-300'
@@ -55,7 +78,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, onO
             <span>Dashboard</span>
           </button>
 
-          <button 
+          <button
             onClick={() => setCurrentTab('equipe')}
             className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
               currentTab === 'equipe' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'hover:bg-slate-800/60 text-slate-300'
@@ -65,7 +88,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, onO
             <span>Equipe</span>
           </button>
 
-          <button 
+          <button
             onClick={() => setCurrentTab('projetos')}
             className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
               currentTab === 'projetos' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'hover:bg-slate-800/60 text-slate-300'
@@ -75,7 +98,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, onO
             <span>Projetos</span>
           </button>
 
-          <button 
+          <button
             onClick={() => setCurrentTab('entregas')}
             className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
               currentTab === 'entregas' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'hover:bg-slate-800/60 text-slate-300'
@@ -85,7 +108,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, onO
             <span>Agenda de Entregas</span>
           </button>
 
-          <button 
+          <button
             onClick={() => setCurrentTab('relatorios')}
             className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
               currentTab === 'relatorios' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'hover:bg-slate-800/60 text-slate-300'
@@ -99,7 +122,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, onO
 
       {/* Rodapé da Barra Lateral */}
       <div className="p-4 border-t border-slate-800/80 space-y-1">
-        <button 
+        <button
           onClick={() => setCurrentTab('profile')}
           className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
             currentTab === 'profile' ? 'bg-blue-600/20 text-blue-400' : 'hover:bg-slate-800 text-slate-300'
@@ -108,7 +131,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, onO
           <User className="w-4 h-4 text-slate-400" />
           <span>Meu perfil</span>
         </button>
-        <button 
+        <button
           onClick={() => setCurrentTab('configuracoes')}
           className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
             currentTab === 'configuracoes' ? 'bg-blue-600/20 text-blue-400' : 'hover:bg-slate-800 text-slate-300'
@@ -121,15 +144,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, onO
         <div className="pt-3 mt-2 border-t border-slate-800 flex items-center justify-between px-2">
           <div className="flex items-center gap-2.5 overflow-hidden">
             <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center font-bold text-white text-xs shrink-0">
-              {user?.name ? user.name.charAt(0).toUpperCase() : 'N'}
+              {user?.name ? user.name.charAt(0).toUpperCase() : '?'}
             </div>
             <div className="overflow-hidden">
-              <p className="text-xs font-medium text-white truncate">{user?.name || 'Naiara Nunes'}</p>
-              <p className="text-[10px] text-blue-400 font-semibold tracking-wider">{user?.role || 'ADMIN'}</p>
+              <p className="text-xs font-medium text-white truncate">{user?.name ?? 'Visitante'}</p>
+              <p className="text-[10px] text-blue-400 font-semibold tracking-wider">{user?.role ?? ''}</p>
             </div>
           </div>
-          
-          <button 
+
+          <button
             onClick={logout}
             title="Sair do sistema"
             className="text-slate-400 hover:text-red-400 transition-colors p-1.5 rounded-lg hover:bg-slate-800 cursor-pointer shrink-0"

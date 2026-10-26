@@ -49,10 +49,11 @@ const MainLayout: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-slate-100 overflow-hidden">
-      <Sidebar 
-        currentTab={currentTab} 
-        setCurrentTab={setCurrentTab} 
-        onOpenNewDelivery={() => setCurrentTab('deliveries')} 
+      <Sidebar
+        currentTab={currentTab}
+        setCurrentTab={setCurrentTab}
+        onOpenNewDelivery={() => setCurrentTab('entregas')}
+        onOpenAssignDelivery={() => alert('Tela de atribuição em construção')}
       />
       <main className="flex-1 overflow-y-auto p-8">
         {renderContent()}
