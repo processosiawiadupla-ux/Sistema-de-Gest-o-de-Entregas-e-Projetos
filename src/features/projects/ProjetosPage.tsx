@@ -1,7 +1,12 @@
 import React, { useState } from 'react';
-import { FolderKanban, Plus, Calendar, User } from 'lucide-react';
-import type { ProjectStatus } from '../../types';
-import { useProjects, useCreateProject } from './useProjects';
+import { FolderKanban, Plus, Calendar, User, Pencil, Trash2 } from 'lucide-react';
+import type { Project, ProjectStatus } from '../../types';
+import {
+  useProjects,
+  useCreateProject,
+  useUpdateProject,
+  useDeleteProject,
+} from './useProjects';
 
 // Converte 'AAAA-MM-DD' em 'DD/MM/AAAA' sem passar pelo fuso horário
 const formatDate = (date: string) => {
@@ -10,13 +15,17 @@ const formatDate = (date: string) => {
 };
 
 export const ProjetosPage: React.FC = () => {
-  // Dados vindos do backend (via TanStack Query)
+  // Dados e ações vindos do backend (via TanStack Query)
   const { data: projects = [], isLoading, isError, error, refetch } = useProjects();
   const createProject = useCreateProject();
+  const updateProject = useUpdateProject();
+  const deleteProject = useDeleteProject();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  // Projeto sendo editado (null = modo de criação)
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
 
-  // Estados do formulário de novo projeto
+  // Estados do formulário
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [owner, setOwner] = useState('');
@@ -25,6 +34,10 @@ export const ProjetosPage: React.FC = () => {
   const [dueDate, setDueDate] = useState('');
   const [status, setStatus] = useState<ProjectStatus>('Não iniciado');
   const [notes, setNotes] = useState('');
+
+  const isEditing = editingProject !== null;
+  const isSaving = createProject.isPending || updateProject.isPending;
+  const saveError = isEditing ? updateProject.error : createProject.error;
 
   const getStatusBadge = (st: ProjectStatus) => {
     switch (st) {
@@ -52,28 +65,60 @@ export const ProjetosPage: React.FC = () => {
     setNotes('');
   };
 
-  const openModal = () => {
-    createProject.reset(); // limpa um erro antigo, se houver
+  // Abre o modal vazio, para criar
+  const openCreateModal = () => {
+    createProject.reset();
+    setEditingProject(null);
+    resetForm();
+    setIsModalOpen(true);
+  };
+
+  // Abre o modal preenchido, para editar
+  const openEditModal = (proj: Project) => {
+    updateProject.reset();
+    setEditingProject(proj);
+    setName(proj.name);
+    setDescription(proj.description);
+    setOwner(proj.owner);
+    setDepartment(proj.department);
+    setStartDate(proj.startDate);
+    setDueDate(proj.dueDate);
+    setStatus(proj.status);
+    setNotes(proj.notes ?? '');
     setIsModalOpen(true);
   };
 
   const closeModal = () => {
     setIsModalOpen(false);
+    setEditingProject(null);
   };
 
-    const handleCreateProject = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !owner) return;
 
-    createProject.mutate(
-      { name, description, owner, department, startDate, dueDate, status, notes },
-      {
-        onSuccess: () => {
-          setIsModalOpen(false);
-          resetForm();
-        },
-      }
+    const input = { name, description, owner, department, startDate, dueDate, status, notes };
+    const onSuccess = () => {
+      closeModal();
+      resetForm();
+    };
+
+    if (editingProject) {
+      updateProject.mutate({ id: editingProject.id, input }, { onSuccess });
+    } else {
+      createProject.mutate(input, { onSuccess });
+    }
+  };
+
+  const handleDelete = (proj: Project) => {
+    const confirmed = window.confirm(
+      `Excluir o projeto "${proj.name}"?\n\nTodas as entregas vinculadas a ele também serão excluídas. Esta ação não pode ser desfeita.`
     );
+    if (!confirmed) return;
+
+    deleteProject.mutate(proj.id, {
+      onError: (err) => window.alert(err.message),
+    });
   };
 
   return (
@@ -91,7 +136,7 @@ export const ProjetosPage: React.FC = () => {
         </div>
 
         <button
-          onClick={openModal}
+          onClick={openCreateModal}
           className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-medium text-sm px-4 py-2.5 rounded-xl shadow-lg shadow-blue-600/20 transition-all cursor-pointer"
         >
           <Plus className="w-4 h-4" />
@@ -107,7 +152,7 @@ export const ProjetosPage: React.FC = () => {
       {/* Erro */}
       {isError && (
         <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-2xl p-4 text-sm flex items-center justify-between gap-4">
-          <span>{error instanceof Error ? error.message : 'Ocorreu um erro ao carregar os projetos.'}</span>
+          <span>{error.message}</span>
           <button
             onClick={() => refetch()}
             className="px-3 py-1.5 rounded-lg border border-rose-300 font-medium hover:bg-rose-100 cursor-pointer"
@@ -126,42 +171,71 @@ export const ProjetosPage: React.FC = () => {
 
       {/* Grid de Cartões dos Projetos */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {projects.map((proj) => (
-          <div key={proj.id} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4 hover:border-slate-300 transition-all">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-100">
-                  {proj.department || 'Geral'}
+        {projects.map((proj) => {
+          const isDeleting = deleteProject.isPending && deleteProject.variables === proj.id;
+
+          return (
+            <div
+              key={proj.id}
+              className={`bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4 hover:border-slate-300 transition-all ${isDeleting ? 'opacity-50' : ''}`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-100">
+                    {proj.department || 'Geral'}
+                  </span>
+                  <h3 className="text-lg font-bold text-slate-900 mt-2">{proj.name}</h3>
+                </div>
+                <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusBadge(proj.status)}`}>
+                  {proj.status}
                 </span>
-                <h3 className="text-lg font-bold text-slate-900 mt-2">{proj.name}</h3>
               </div>
-              <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusBadge(proj.status)}`}>
-                {proj.status}
-              </span>
-            </div>
 
-            <p className="text-sm text-slate-600">{proj.description || 'Sem descrição informada.'}</p>
+              <p className="text-sm text-slate-600">{proj.description || 'Sem descrição informada.'}</p>
 
-            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-xs text-slate-500">
-              <div className="flex items-center gap-1.5">
-                <User className="w-4 h-4 text-slate-400" />
-                <span className="font-medium text-slate-700 truncate">{proj.owner || 'Sem responsável'}</span>
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-xs text-slate-500">
+                <div className="flex items-center gap-1.5">
+                  <User className="w-4 h-4 text-slate-400" />
+                  <span className="font-medium text-slate-700 truncate">{proj.owner || 'Sem responsável'}</span>
+                </div>
+                <div className="flex items-center gap-1.5 justify-end">
+                  <Calendar className="w-4 h-4 text-slate-400" />
+                  <span>Prazo: {proj.dueDate ? formatDate(proj.dueDate) : 'Indefinido'}</span>
+                </div>
               </div>
-              <div className="flex items-center gap-1.5 justify-end">
-                <Calendar className="w-4 h-4 text-slate-400" />
-                <span>Prazo: {proj.dueDate ? formatDate(proj.dueDate) : 'Indefinido'}</span>
+
+              {/* Ações */}
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => openEditModal(proj)}
+                  disabled={isDeleting}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50 cursor-pointer disabled:cursor-not-allowed"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  Editar
+                </button>
+                <button
+                  onClick={() => handleDelete(proj)}
+                  disabled={isDeleting}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-200 text-xs font-medium text-rose-600 hover:bg-rose-50 cursor-pointer disabled:cursor-not-allowed"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  {isDeleting ? 'Excluindo...' : 'Excluir'}
+                </button>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      {/* Modal de Criar Projeto */}
+      {/* Modal de Criar / Editar Projeto */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h2 className="text-lg font-bold text-slate-900">Cadastrar Novo Projeto</h2>
+              <h2 className="text-lg font-bold text-slate-900">
+                {isEditing ? 'Editar Projeto' : 'Cadastrar Novo Projeto'}
+              </h2>
               <button
                 onClick={closeModal}
                 className="text-slate-400 hover:text-slate-600 text-sm font-bold p-1 cursor-pointer"
@@ -170,7 +244,7 @@ export const ProjetosPage: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleCreateProject} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
                   Nome do Projeto *
@@ -255,7 +329,7 @@ export const ProjetosPage: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                  Status Inicial
+                  {isEditing ? 'Status' : 'Status Inicial'}
                 </label>
                 <select
                   value={status}
@@ -284,12 +358,8 @@ export const ProjetosPage: React.FC = () => {
               </div>
 
               {/* Erro ao salvar */}
-              {createProject.isError && (
-                <p className="text-sm text-rose-600">
-                  {createProject.error instanceof Error
-                    ? createProject.error.message
-                    : 'Erro ao salvar projeto'}
-                </p>
+              {saveError && (
+                <p className="text-sm text-rose-600">{saveError.message}</p>
               )}
 
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
@@ -302,10 +372,10 @@ export const ProjetosPage: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={createProject.isPending}
+                  disabled={isSaving}
                   className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-sm font-medium text-white shadow-lg shadow-blue-600/20 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {createProject.isPending ? 'Salvando...' : 'Salvar Projeto'}
+                  {isSaving ? 'Salvando...' : isEditing ? 'Salvar Alterações' : 'Salvar Projeto'}
                 </button>
               </div>
             </form>

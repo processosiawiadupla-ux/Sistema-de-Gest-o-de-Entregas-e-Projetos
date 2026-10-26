@@ -51,8 +51,8 @@ function toProject(dto: ProjectDTO): Project {
   }
 }
 
-// O que as telas enviam para criar um projeto
-export interface CreateProjectInput {
+// O que as telas enviam para criar ou editar um projeto
+export interface ProjectInput {
   name: string
   description?: string
   owner?: string
@@ -63,23 +63,37 @@ export interface CreateProjectInput {
   notes?: string
 }
 
+// Traduz os dados da tela para o formato do backend
+function toPayload(input: ProjectInput) {
+  return {
+    name: input.name,
+    description: input.description || null,
+    owner: input.owner || null,
+    department: input.department || null,
+    start_date: input.startDate || null,
+    due_date: input.dueDate || null,
+    status: input.status ? STATUS_TO_API[input.status] : undefined,
+    notes: input.notes || null,
+  }
+}
+
 export const projectService = {
   async getAll(): Promise<Project[]> {
     const response = await api.get<ProjectDTO[]>('/projects')
     return response.data.map(toProject)
   },
 
-  async create(input: CreateProjectInput): Promise<Project> {
-    const response = await api.post<ProjectDTO>('/projects', {
-      name: input.name,
-      description: input.description || null,
-      owner: input.owner || null,
-      department: input.department || null,
-      start_date: input.startDate || null,
-      due_date: input.dueDate || null,
-      status: input.status ? STATUS_TO_API[input.status] : undefined,
-      notes: input.notes || null,
-    })
+  async create(input: ProjectInput): Promise<Project> {
+    const response = await api.post<ProjectDTO>('/projects', toPayload(input))
     return toProject(response.data)
+  },
+
+  async update(id: string, input: ProjectInput): Promise<Project> {
+    const response = await api.put<ProjectDTO>(`/projects/${id}`, toPayload(input))
+    return toProject(response.data)
+  },
+
+  async remove(id: string): Promise<void> {
+    await api.delete(`/projects/${id}`)
   },
 }

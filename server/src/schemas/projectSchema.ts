@@ -29,3 +29,6 @@ export const createProjectSchema = z
   );
 
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;
+
+// Valida o id que vem no endereço (/projects/:id)
+export const projectIdSchema = z.uuid();
