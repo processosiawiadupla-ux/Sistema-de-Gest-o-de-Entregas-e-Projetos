@@ -52,6 +52,7 @@ export interface ProjectStage {
 
 // 6. Entregas (Atividades vinculadas a setores e pessoas)
 export interface Delivery {
+  deadline: ReactNode;
   id: string;
   projectId?: string;
   title: string;
