@@ -61,14 +61,12 @@ export const ProjetosPage: React.FC = () => {
     setIsModalOpen(false);
   };
 
-  const handleCreateProject = (e: React.FormEvent) => {
+    const handleCreateProject = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !owner) return;
 
-    // Por enquanto o backend só grava nome, descrição e status.
-    // Os demais campos entram no próximo passo.
     createProject.mutate(
-      { name, description, status },
+      { name, description, owner, department, startDate, dueDate, status, notes },
       {
         onSuccess: () => {
           setIsModalOpen(false);

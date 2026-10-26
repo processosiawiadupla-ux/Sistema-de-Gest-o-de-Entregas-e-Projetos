@@ -55,7 +55,12 @@ function toProject(dto: ProjectDTO): Project {
 export interface CreateProjectInput {
   name: string
   description?: string
+  owner?: string
+  department?: string
+  startDate?: string
+  dueDate?: string
   status?: ProjectStatus
+  notes?: string
 }
 
 export const projectService = {
@@ -68,7 +73,12 @@ export const projectService = {
     const response = await api.post<ProjectDTO>('/projects', {
       name: input.name,
       description: input.description || null,
+      owner: input.owner || null,
+      department: input.department || null,
+      start_date: input.startDate || null,
+      due_date: input.dueDate || null,
       status: input.status ? STATUS_TO_API[input.status] : undefined,
+      notes: input.notes || null,
     })
     return toProject(response.data)
   },
