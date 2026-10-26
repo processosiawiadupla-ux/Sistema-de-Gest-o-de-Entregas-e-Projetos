@@ -1,5 +1,5 @@
-import { api } from '../lib/api'
-import type { Delivery } from '../types'
+import { api } from '../src/lib/api'
+import type { Delivery } from '../src/types'
 
 // Formato que o backend devolve
 interface DeliveryDTO {
