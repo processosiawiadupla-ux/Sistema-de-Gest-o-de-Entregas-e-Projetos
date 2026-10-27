@@ -30,7 +30,8 @@ export interface Project {
   description: string;
   ownerId?: string;        // ID do responsável
   owner: string;          // Nome legível do responsável
-  department: string;     // Setor / Área
+  department: string;
+  sectorId?: string;     // Setor / Área
   startDate: string;      // Data de início (AAAA-MM-DD)
   dueDate: string;        // Prazo final
   status: ProjectStatus;

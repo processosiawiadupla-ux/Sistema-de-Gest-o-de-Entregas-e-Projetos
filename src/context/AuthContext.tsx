@@ -1,59 +1,48 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { authService, type AuthUser } from '../services/authService';
 
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: 'ADMIN' | 'LIDER' | 'COLABORADOR';
-}
+export type User = AuthUser;
 
 interface AuthContextType {
-  user: User | null;
-  login: (email: string, password: string) => boolean;
-  register: (name: string, email: string, password: string) => boolean;
-  logout: () => void;
+  user: AuthUser | null;
+  isLoading: boolean;                                    // conferindo a sessão ao abrir
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(() => {
-    const savedUser = localStorage.getItem('wiaflow_user');
-    return savedUser ? JSON.parse(savedUser) : null;
-  });
+  const queryClient = useQueryClient();
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const login = (email: string, _password: string): boolean => {
-    // Simulação de login - pode ser conectado a uma API Node.js/PostgreSQL futuramente
-    const loggedUser: User = {
-      id: 'usr-1',
-      name: email.split('@')[0].toUpperCase(),
-      email: email,
-      role: 'ADMIN',
-    };
+  // Ao abrir a página, pergunta ao backend se já existe uma sessão
+  useEffect(() => {
+    authService.me().then((currentUser) => {
+      setUser(currentUser);
+      setIsLoading(false);
+    });
+  }, []);
+
+  const login = async (email: string, password: string) => {
+    const loggedUser = await authService.login(email, password);
+    queryClient.clear(); // descarta dados de uma sessão anterior
     setUser(loggedUser);
-    localStorage.setItem('wiaflow_user', JSON.stringify(loggedUser));
-    return true;
   };
 
-  const register = (name: string, email: string, _password: string): boolean => {
-    const newUser: User = {
-      id: `usr-${Date.now()}`,
-      name: name,
-      email: email,
-      role: 'COLABORADOR',
-    };
-    setUser(newUser);
-    localStorage.setItem('wiaflow_user', JSON.stringify(newUser));
-    return true;
-  };
-
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('wiaflow_user');
+  const logout = async () => {
+    try {
+      await authService.logout();
+    } finally {
+      queryClient.clear(); // o próximo usuário não vê dados do anterior
+      setUser(null);
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

@@ -13,16 +13,18 @@ import { DeliveryFormModal, type DeliveryFormMode } from './features/deliveries/
 
 // Componente do layout protegido por autenticação
 const MainLayout: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const [currentTab, setCurrentTab] = useState('dashboard');
   // Modal de entrega aberto: 'launch', 'assign' ou null (fechado)
   const [deliveryModal, setDeliveryModal] = useState<DeliveryFormMode | null>(null);
 
+  
   // Se não houver utilizador autenticado, exibe a tela de Login / Cadastro
+  if (isLoading){ 
   if (!user) {
     return <AuthPage />;
   }
-
+}
   // Renderização dinâmica do conteúdo conforme a aba selecionada no menu
   const renderContent = () => {
     switch (currentTab) {
