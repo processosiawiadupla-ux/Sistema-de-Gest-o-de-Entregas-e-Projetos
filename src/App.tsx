@@ -9,11 +9,14 @@ import { EntregasPage } from './features/deliveries/EntregasPage';
 import { RelatoriosPage } from './features/reports/RelatoriosPage';
 import { PerfilPage } from './features/profile/PerfilPage';
 import { ConfiguracoesPage } from './features/settings/ConfiguracoesPage';
+import { DeliveryFormModal, type DeliveryFormMode } from './features/deliveries/DeliveryFormModal';
 
 // Componente do layout protegido por autenticação
 const MainLayout: React.FC = () => {
   const { user } = useAuth();
   const [currentTab, setCurrentTab] = useState('dashboard');
+  // Modal de entrega aberto: 'launch', 'assign' ou null (fechado)
+  const [deliveryModal, setDeliveryModal] = useState<DeliveryFormMode | null>(null);
 
   // Se não houver utilizador autenticado, exibe a tela de Login / Cadastro
   if (!user) {
@@ -52,12 +55,20 @@ const MainLayout: React.FC = () => {
       <Sidebar
         currentTab={currentTab}
         setCurrentTab={setCurrentTab}
-        onOpenNewDelivery={() => setCurrentTab('entregas')}
-        onOpenAssignDelivery={() => alert('Tela de atribuição em construção')}
+        onOpenNewDelivery={() => setDeliveryModal('launch')}
+        onOpenAssignDelivery={() => setDeliveryModal('assign')}
       />
       <main className="flex-1 overflow-y-auto p-8">
         {renderContent()}
       </main>
+
+      {deliveryModal && (
+        <DeliveryFormModal
+          mode={deliveryModal}
+          onClose={() => setDeliveryModal(null)}
+          onCreated={() => setCurrentTab('entregas')}
+        />
+      )}
     </div>
   );
 };

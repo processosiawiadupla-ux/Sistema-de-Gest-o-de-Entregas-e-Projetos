@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Users, UserPlus, Shield, Mail, Briefcase, Search } from 'lucide-react';
+import { UserPlus, Shield, Mail, Briefcase, Search } from 'lucide-react';
 import { initialUsers } from '../../services/mockData';
 
 export const EquipePage: React.FC = () => {

@@ -8,11 +8,12 @@ import {
   useDeleteProject,
 } from './useProjects';
 
+
 // Converte 'AAAA-MM-DD' em 'DD/MM/AAAA' sem passar pelo fuso horário
-const formatDate = (date: string) => {
-  const [year, month, day] = date.split('-');
-  return `${day}/${month}/${year}`;
-};
+export function formatDate(date: string): string {
+  const [year, month, day] = date.split('-')
+  return `${day}/${month}/${year}`
+}
 
 export const ProjetosPage: React.FC = () => {
   // Dados e ações vindos do backend (via TanStack Query)
