@@ -4,8 +4,6 @@ import type { Delivery } from '../types'
 // Formato que o backend devolve
 interface DeliveryDTO {
   id: string
-  project_id: string | null
-  project_name: string | null
   title: string
   description: string | null
   assigned_to_id: string | null
@@ -24,8 +22,6 @@ interface DeliveryDTO {
 function toDelivery(dto: DeliveryDTO): Delivery {
   return {
     id: dto.id,
-    projectId: dto.project_id ?? undefined,
-    projectName: dto.project_name ?? undefined,
     title: dto.title,
     description: dto.description ?? undefined,
     assignedToId: dto.assigned_to_id ?? undefined,
@@ -44,7 +40,6 @@ function toDelivery(dto: DeliveryDTO): Delivery {
 export interface DeliveryInput {
   title: string
   description?: string
-  projectId?: string
   assignedToName: string
   assignedByName?: string
   sector?: string
@@ -56,7 +51,6 @@ function toPayload(input: DeliveryInput) {
   return {
     title: input.title,
     description: input.description || null,
-    project_id: input.projectId || null,
     assigned_to_name: input.assignedToName,
     assigned_by_name: input.assignedByName || null,
     sector: input.sector || null,

@@ -7,7 +7,6 @@ export const createDeliverySchema = z.object({
     .min(1, 'O título da entrega é obrigatório.')
     .max(255, 'O título pode ter no máximo 255 caracteres.'),
   description: z.string().trim().max(2000, 'A descrição pode ter no máximo 2000 caracteres.').nullish(),
-  project_id: z.uuid('Projeto inválido.').nullish(),
   assigned_to_name: z
     .string('Informe o responsável pela entrega.')
     .trim()

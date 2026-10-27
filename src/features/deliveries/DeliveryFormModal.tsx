@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { useProjects } from '../projects/useProjects';
 import { useCreateDelivery } from './useDeliveries';
 import { canAssignDeliveries } from '../../lib/permissions';
 
@@ -18,7 +17,6 @@ const labelClass = 'block text-xs font-semibold text-slate-700 uppercase trackin
 
 export const DeliveryFormModal: React.FC<DeliveryFormModalProps> = ({ mode, onClose, onCreated }) => {
   const { user } = useAuth();
-  const { data: projects = [] } = useProjects();
   const createDelivery = useCreateDelivery();
 
   const isAssign = mode === 'assign';
@@ -28,7 +26,6 @@ export const DeliveryFormModal: React.FC<DeliveryFormModalProps> = ({ mode, onCl
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [assignedToName, setAssignedToName] = useState(isAssign ? '' : currentUserName);
-  const [projectId, setProjectId] = useState('');
   const [sector, setSector] = useState('');
   const [dueDate, setDueDate] = useState('');
 
@@ -44,7 +41,6 @@ export const DeliveryFormModal: React.FC<DeliveryFormModalProps> = ({ mode, onCl
       {
         title,
         description,
-        projectId,
         assignedToName: isAssign ? assignedToName : currentUserName,
         assignedByName: currentUserName,
         sector,
@@ -131,33 +127,15 @@ export const DeliveryFormModal: React.FC<DeliveryFormModalProps> = ({ mode, onCl
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className={labelClass}>Projeto (opcional)</label>
-              <select
-                value={projectId}
-                onChange={(e) => setProjectId(e.target.value)}
-                className={inputClass}
-              >
-                <option value="">Sem projeto</option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className={labelClass}>Setor</label>
-              <input
-                type="text"
-                placeholder="Ex: Comercial, TI"
-                value={sector}
-                onChange={(e) => setSector(e.target.value)}
-                className={inputClass}
-              />
-            </div>
+          <div>
+            <label className={labelClass}>Setor</label>
+            <input
+              type="text"
+              placeholder="Ex: Comercial, Produção"
+              value={sector}
+              onChange={(e) => setSector(e.target.value)}
+              className={inputClass}
+            />
           </div>
 
           {createDelivery.isError && (

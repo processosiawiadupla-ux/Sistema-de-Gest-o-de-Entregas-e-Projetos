@@ -25,13 +25,18 @@ function sendNotFound(res: Response) {
   res.status(404).json({ message: 'Projeto não encontrado.' });
 }
 
+// Código 23503 do PostgreSQL: a chave estrangeira aponta para algo que não existe
+function isForeignKeyError(error: unknown) {
+  return (error as { code?: string }).code === '23503';
+}
+
 // Converte os dados validados na lista de valores da query
 function toValues(data: CreateProjectInput) {
   return [
     data.name,
     data.description || null,
     data.owner || null,
-    data.department || null,
+    data.sector_id ?? null,
     data.start_date ?? null,
     data.due_date ?? null,
     data.status ?? null,
@@ -39,10 +44,17 @@ function toValues(data: CreateProjectInput) {
   ];
 }
 
-// Listar projetos
+// Listar projetos, com o nome do setor
 router.get('/projects', async (_req, res) => {
+  const query = `
+    SELECT p.*, s.name AS sector_name
+    FROM projects p
+    LEFT JOIN sectors s ON s.id = p.sector_id
+    ORDER BY p.created_at DESC;
+  `;
+
   try {
-    const result = await pool.query('SELECT * FROM projects ORDER BY created_at DESC;');
+    const result = await pool.query(query);
     res.json(result.rows);
   } catch (error) {
     console.error('Erro ao listar projetos:', error);
@@ -59,7 +71,7 @@ router.post('/projects', async (req, res) => {
   }
 
   const query = `
-    INSERT INTO projects (name, description, owner, department, start_date, due_date, status, notes)
+    INSERT INTO projects (name, description, owner, sector_id, start_date, due_date, status, notes)
     VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, 'not_started'), $8)
     RETURNING *;
   `;
@@ -68,6 +80,10 @@ router.post('/projects', async (req, res) => {
     const result = await pool.query(query, toValues(parsed.data));
     res.status(201).json(result.rows[0]);
   } catch (error) {
+    if (isForeignKeyError(error)) {
+      res.status(400).json({ message: 'O setor informado não existe.' });
+      return;
+    }
     console.error('Erro ao criar projeto:', error);
     res.status(500).json({ message: 'Erro ao criar projeto.' });
   }
@@ -92,7 +108,7 @@ router.put('/projects/:id', async (req, res) => {
     SET name = $1,
         description = $2,
         owner = $3,
-        department = $4,
+        sector_id = $4,
         start_date = $5,
         due_date = $6,
         status = COALESCE($7, status),
@@ -109,6 +125,10 @@ router.put('/projects/:id', async (req, res) => {
     }
     res.json(result.rows[0]);
   } catch (error) {
+    if (isForeignKeyError(error)) {
+      res.status(400).json({ message: 'O setor informado não existe.' });
+      return;
+    }
     console.error('Erro ao editar projeto:', error);
     res.status(500).json({ message: 'Erro ao editar projeto.' });
   }

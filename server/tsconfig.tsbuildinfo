@@ -1,0 +1,1 @@
+{"root":["./src/server.ts","./src/config/database.ts","./src/config/initdb.ts","./src/routes/deliveryroutes.ts","./src/routes/projectroutes.ts","./src/routes/sectorroutes.ts","./src/schemas/deliveryschema.ts","./src/schemas/projectschema.ts"],"version":"6.0.3"}

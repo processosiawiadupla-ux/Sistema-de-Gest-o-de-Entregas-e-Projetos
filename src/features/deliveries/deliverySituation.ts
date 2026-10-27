@@ -41,3 +41,12 @@ export function getDeliverySituation(
   if (daysLeft <= RISK_WINDOW_DAYS) return 'EM RISCO'
   return 'NO PRAZO'
 }
+
+// Texto de cada situação, para exibir ou exportar
+export const SITUATION_LABELS: Record<DeliverySituation, string> = {
+  'NO PRAZO': 'No prazo',
+  'EM RISCO': 'Em risco',
+  'ATRASADO': 'Atrasado',
+  'CONCLUIDO': 'Concluído',
+  'CONCLUIDO COM ATRASO': 'Concluído com atraso',
+};

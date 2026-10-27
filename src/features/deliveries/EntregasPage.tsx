@@ -9,7 +9,6 @@ import {
   Calendar,
   User,
   Building,
-  FolderKanban,
   type LucideIcon,
 } from 'lucide-react';
 import type { DeliverySituation } from '../../types';
@@ -78,7 +77,7 @@ export const EntregasPage: React.FC = () => {
   const filteredDeliveries = withSituation.filter((d) => {
     const matchesSearch =
       !term ||
-      [d.title, d.assignedToName, d.sector, d.projectName ?? ''].some((value) =>
+      [d.title, d.assignedToName, d.sector].some((value) =>
         value.toLowerCase().includes(term)
       );
     return matchesSearch && matchesFilter(d.situation, filter);
@@ -185,12 +184,6 @@ export const EntregasPage: React.FC = () => {
                       <p className={`text-sm font-medium ${delivery.completed ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
                         {delivery.title}
                       </p>
-                      {delivery.projectName && (
-                        <p className="text-xs text-slate-500 inline-flex items-center gap-1 mt-0.5">
-                          <FolderKanban className="w-3.5 h-3.5" />
-                          {delivery.projectName}
-                        </p>
-                      )}
                     </td>
                     <td className="py-3.5 px-4 text-sm text-slate-600">
                       <span className="inline-flex items-center gap-2">

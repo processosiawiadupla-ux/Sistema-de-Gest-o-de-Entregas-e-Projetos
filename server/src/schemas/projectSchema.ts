@@ -17,7 +17,7 @@ export const createProjectSchema = z
       .max(255, 'O nome pode ter no máximo 255 caracteres.'),
     description: z.string().trim().max(2000, 'A descrição pode ter no máximo 2000 caracteres.').nullish(),
     owner: z.string().trim().max(255, 'O nome do responsável é muito longo.').nullish(),
-    department: z.string().trim().max(100, 'O setor pode ter no máximo 100 caracteres.').nullish(),
+    sector_id: z.uuid('O setor inválido').nullish(),
     start_date: z.iso.date('Data de início inválida.').nullish(),
     due_date: z.iso.date('Prazo inválido.').nullish(),
     status: z.enum(PROJECT_STATUS, 'Status inválido.').optional(),

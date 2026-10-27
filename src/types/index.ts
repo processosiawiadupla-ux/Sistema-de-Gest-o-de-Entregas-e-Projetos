@@ -60,8 +60,6 @@ export type DeliverySituation =
 // 6.1 Entregas (atividades atribuídas a pessoas, com ou sem projeto)
 export interface Delivery {
   id: string;
-  projectId?: string;
-  projectName?: string;
   title: string;
   description?: string;
   assignedToId?: string;

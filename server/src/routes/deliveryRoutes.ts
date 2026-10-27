@@ -24,16 +24,10 @@ function sendNotFound(res: Response) {
   res.status(404).json({ message: 'Entrega não encontrada.' });
 }
 
-// Código 23503 do PostgreSQL: a chave estrangeira aponta para algo que não existe
-function isForeignKeyError(error: unknown) {
-  return (error as { code?: string }).code === '23503';
-}
-
 function toValues(data: CreateDeliveryInput) {
   return [
     data.title,
     data.description || null,
-    data.project_id ?? null,
     data.assigned_to_name,
     data.assigned_by_name || null,
     data.sector || null,
@@ -41,17 +35,12 @@ function toValues(data: CreateDeliveryInput) {
   ];
 }
 
-// Listar entregas (com o nome do projeto, quando houver)
+// Listar entregas
 router.get('/deliveries', async (_req, res) => {
-  const query = `
-    SELECT d.*, p.name AS project_name
-    FROM deliveries d
-    LEFT JOIN projects p ON p.id = d.project_id
-    ORDER BY d.due_date ASC, d.created_at DESC;
-  `;
-
   try {
-    const result = await pool.query(query);
+    const result = await pool.query(
+      'SELECT * FROM deliveries ORDER BY due_date ASC, created_at DESC;'
+    );
     res.json(result.rows);
   } catch (error) {
     console.error('Erro ao listar entregas:', error);
@@ -68,8 +57,8 @@ router.post('/deliveries', async (req, res) => {
   }
 
   const query = `
-    INSERT INTO deliveries (title, description, project_id, assigned_to_name, assigned_by_name, sector, due_date)
-    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    INSERT INTO deliveries (title, description, assigned_to_name, assigned_by_name, sector, due_date)
+    VALUES ($1, $2, $3, $4, $5, $6)
     RETURNING *;
   `;
 
@@ -77,10 +66,6 @@ router.post('/deliveries', async (req, res) => {
     const result = await pool.query(query, toValues(parsed.data));
     res.status(201).json(result.rows[0]);
   } catch (error) {
-    if (isForeignKeyError(error)) {
-      res.status(400).json({ message: 'O projeto informado não existe.' });
-      return;
-    }
     console.error('Erro ao criar entrega:', error);
     res.status(500).json({ message: 'Erro ao criar entrega.' });
   }
@@ -104,12 +89,11 @@ router.put('/deliveries/:id', async (req, res) => {
     UPDATE deliveries
     SET title = $1,
         description = $2,
-        project_id = $3,
-        assigned_to_name = $4,
-        assigned_by_name = $5,
-        sector = $6,
-        due_date = $7
-    WHERE id = $8
+        assigned_to_name = $3,
+        assigned_by_name = $4,
+        sector = $5,
+        due_date = $6
+    WHERE id = $7
     RETURNING *;
   `;
 
@@ -121,10 +105,6 @@ router.put('/deliveries/:id', async (req, res) => {
     }
     res.json(result.rows[0]);
   } catch (error) {
-    if (isForeignKeyError(error)) {
-      res.status(400).json({ message: 'O projeto informado não existe.' });
-      return;
-    }
     console.error('Erro ao editar entrega:', error);
     res.status(500).json({ message: 'Erro ao editar entrega.' });
   }

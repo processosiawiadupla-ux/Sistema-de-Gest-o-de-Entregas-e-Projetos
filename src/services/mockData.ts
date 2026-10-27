@@ -60,7 +60,6 @@ export const initialStages: ProjectStage[] = [
 export const initialDeliveries: Delivery[] = [
   {
     id: 'del-1',
-    projectId: 'proj-1',
     title: 'Revisar logs de segurança do servidor',
     description: 'Verificar acessos não autorizados e configurar fail2ban.',
     assignedToId: 'usr-2',
