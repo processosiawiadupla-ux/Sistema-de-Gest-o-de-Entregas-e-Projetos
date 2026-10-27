@@ -65,10 +65,17 @@ export interface Delivery {
   assignedToId?: string;
   assignedToName: string;
   assignedByName?: string;
+  sectorId: string;
   sector: string;
   dueDate: string;
   completed: boolean;
   completedAt?: string;
   commentsCount: number;
   createdAt?: string;
+}
+
+// 9. Setores da empresa
+export interface Sector {
+  id: string;
+  name: string;
 }

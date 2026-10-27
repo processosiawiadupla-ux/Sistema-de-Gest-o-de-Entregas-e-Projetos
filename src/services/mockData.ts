@@ -1,5 +1,4 @@
-import type { User, ProjectStage, Delivery } from '../types';
-
+import type { User, ProjectStage } from '../types';
 export const initialUsers: User[] = [
   {
     id: 'usr-1',
@@ -54,19 +53,5 @@ export const initialStages: ProjectStage[] = [
     status: 'PROXIMO A VENCER',
     completed: false,
     assignedToId: 'usr-2',
-  },
-];
-
-export const initialDeliveries: Delivery[] = [
-  {
-    id: 'del-1',
-    title: 'Revisar logs de segurança do servidor',
-    description: 'Verificar acessos não autorizados e configurar fail2ban.',
-    assignedToId: 'usr-2',
-    assignedToName: 'Carlos Oliveira',
-    sector: 'Tecnologia / Desenvolvimento',
-    dueDate: '2026-03-25',
-    completed: false,
-    commentsCount: 2,
   },
 ];

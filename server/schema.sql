@@ -24,11 +24,14 @@ CREATE TABLE IF NOT EXISTS users (
   name VARCHAR(255) NOT NULL,
   email VARCHAR(255) UNIQUE NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
-  role VARCHAR(50) DEFAULT 'COLABORADOR',
-  status VARCHAR(50) DEFAULT 'ATIVO',
-  sector VARCHAR(100),
+  role VARCHAR(50) NOT NULL DEFAULT 'COLABORADOR'
+    CHECK (role IN ('ADMIN', 'LIDER', 'COLABORADOR')),
+  status VARCHAR(50) NOT NULL DEFAULT 'ATIVO'
+    CHECK (status IN ('PENDENTE', 'ATIVO', 'INATIVO')),
+  sector_id UUID REFERENCES sectors(id),
   avatar_url TEXT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT users_sector_required CHECK (role = 'ADMIN' OR sector_id IS NOT NULL)
 );
 
 -- Tabela de Projetos

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useCreateDelivery } from './useDeliveries';
+import { useSectors } from '../sectors/useSectors';
 import { canAssignDeliveries } from '../../lib/permissions';
 
 export type DeliveryFormMode = 'launch' | 'assign';
@@ -17,6 +18,7 @@ const labelClass = 'block text-xs font-semibold text-slate-700 uppercase trackin
 
 export const DeliveryFormModal: React.FC<DeliveryFormModalProps> = ({ mode, onClose, onCreated }) => {
   const { user } = useAuth();
+  const { data: sectors = [], isLoading: loadingSectors } = useSectors();
   const createDelivery = useCreateDelivery();
 
   const isAssign = mode === 'assign';
@@ -26,7 +28,7 @@ export const DeliveryFormModal: React.FC<DeliveryFormModalProps> = ({ mode, onCl
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [assignedToName, setAssignedToName] = useState(isAssign ? '' : currentUserName);
-  const [sector, setSector] = useState('');
+  const [sectorId, setSectorId] = useState('');
   const [dueDate, setDueDate] = useState('');
 
   // Proteção extra: o modo "atribuir" só abre para quem tem permissão
@@ -43,7 +45,7 @@ export const DeliveryFormModal: React.FC<DeliveryFormModalProps> = ({ mode, onCl
         description,
         assignedToName: isAssign ? assignedToName : currentUserName,
         assignedByName: currentUserName,
-        sector,
+        sectorId,
         dueDate,
       },
       {
@@ -128,14 +130,23 @@ export const DeliveryFormModal: React.FC<DeliveryFormModalProps> = ({ mode, onCl
           </div>
 
           <div>
-            <label className={labelClass}>Setor</label>
-            <input
-              type="text"
-              placeholder="Ex: Comercial, Produção"
-              value={sector}
-              onChange={(e) => setSector(e.target.value)}
+            <label className={labelClass}>Setor *</label>
+            <select
+              required
+              value={sectorId}
+              onChange={(e) => setSectorId(e.target.value)}
+              disabled={loadingSectors}
               className={inputClass}
-            />
+            >
+              <option value="" disabled>
+                {loadingSectors ? 'Carregando setores...' : 'Selecione o setor'}
+              </option>
+              {sectors.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           {createDelivery.isError && (

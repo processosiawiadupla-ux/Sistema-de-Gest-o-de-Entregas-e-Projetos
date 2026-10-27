@@ -7,17 +7,17 @@ import {
   useUpdateProject,
   useDeleteProject,
 } from './useProjects';
+import { useSectors } from '../sectors/useSectors';
+import { formatDate } from '../../lib/format';
 
-
-// Converte 'AAAA-MM-DD' em 'DD/MM/AAAA' sem passar pelo fuso horário
-export function formatDate(date: string): string {
-  const [year, month, day] = date.split('-')
-  return `${day}/${month}/${year}`
-}
+const inputClass =
+  'w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none';
+const labelClass = 'block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1';
 
 export const ProjetosPage: React.FC = () => {
   // Dados e ações vindos do backend (via TanStack Query)
   const { data: projects = [], isLoading, isError, error, refetch } = useProjects();
+  const { data: sectors = [] } = useSectors();
   const createProject = useCreateProject();
   const updateProject = useUpdateProject();
   const deleteProject = useDeleteProject();
@@ -30,7 +30,7 @@ export const ProjetosPage: React.FC = () => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [owner, setOwner] = useState('');
-  const [department, setDepartment] = useState('');
+  const [sectorId, setSectorId] = useState('');
   const [startDate, setStartDate] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [status, setStatus] = useState<ProjectStatus>('Não iniciado');
@@ -59,7 +59,7 @@ export const ProjetosPage: React.FC = () => {
     setName('');
     setDescription('');
     setOwner('');
-    setDepartment('');
+    setSectorId('');
     setStartDate('');
     setDueDate('');
     setStatus('Não iniciado');
@@ -81,7 +81,7 @@ export const ProjetosPage: React.FC = () => {
     setName(proj.name);
     setDescription(proj.description);
     setOwner(proj.owner);
-    setDepartment(proj.department);
+    setSectorId(proj.sectorId ?? '');
     setStartDate(proj.startDate);
     setDueDate(proj.dueDate);
     setStatus(proj.status);
@@ -98,7 +98,7 @@ export const ProjetosPage: React.FC = () => {
     e.preventDefault();
     if (!name || !owner) return;
 
-    const input = { name, description, owner, department, startDate, dueDate, status, notes };
+    const input = { name, description, owner, sectorId, startDate, dueDate, status, notes };
     const onSuccess = () => {
       closeModal();
       resetForm();
@@ -113,7 +113,7 @@ export const ProjetosPage: React.FC = () => {
 
   const handleDelete = (proj: Project) => {
     const confirmed = window.confirm(
-      `Excluir o projeto "${proj.name}"?\n\nTodas as entregas vinculadas a ele também serão excluídas. Esta ação não pode ser desfeita.`
+      `Excluir o projeto "${proj.name}"?\n\nEsta ação não pode ser desfeita.`
     );
     if (!confirmed) return;
 
@@ -247,95 +247,86 @@ export const ProjetosPage: React.FC = () => {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                  Nome do Projeto *
-                </label>
+                <label className={labelClass}>Nome do Projeto *</label>
                 <input
                   type="text"
                   required
                   placeholder="Ex: Expansão Logística Sul"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className={inputClass}
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                  Descrição Resumida
-                </label>
+                <label className={labelClass}>Descrição Resumida</label>
                 <textarea
                   rows={2}
                   placeholder="Qual o objetivo principal do projeto?"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className={inputClass}
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                    Responsável Principal *
-                  </label>
+                  <label className={labelClass}>Responsável Principal *</label>
                   <input
                     type="text"
                     required
                     placeholder="Nome do responsável"
                     value={owner}
                     onChange={(e) => setOwner(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className={inputClass}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                    Área ou Setor
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ex: Operações, TI"
-                    value={department}
-                    onChange={(e) => setDepartment(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  />
+                  <label className={labelClass}>Setor</label>
+                  <select
+                    value={sectorId}
+                    onChange={(e) => setSectorId(e.target.value)}
+                    className={inputClass}
+                  >
+                    <option value="">Geral (sem setor)</option>
+                    {sectors.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                    Data de Início
-                  </label>
+                  <label className={labelClass}>Data de Início</label>
                   <input
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className={inputClass}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                    Prazo Previsto (Conclusão)
-                  </label>
+                  <label className={labelClass}>Prazo Previsto (Conclusão)</label>
                   <input
                     type="date"
                     value={dueDate}
                     onChange={(e) => setDueDate(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className={inputClass}
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                  {isEditing ? 'Status' : 'Status Inicial'}
-                </label>
+                <label className={labelClass}>{isEditing ? 'Status' : 'Status Inicial'}</label>
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value as ProjectStatus)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className={inputClass}
                 >
                   <option value="Não iniciado">Não iniciado</option>
                   <option value="Em andamento">Em andamento</option>
@@ -346,15 +337,13 @@ export const ProjetosPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                  Observações Gerais
-                </label>
+                <label className={labelClass}>Observações Gerais</label>
                 <input
                   type="text"
                   placeholder="Notas adicionais"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className={inputClass}
                 />
               </div>
 

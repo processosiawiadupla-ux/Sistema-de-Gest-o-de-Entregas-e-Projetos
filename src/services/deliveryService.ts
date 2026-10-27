@@ -10,7 +10,8 @@ interface DeliveryDTO {
   assigned_to_name: string | null
   assigned_by_id: string | null
   assigned_by_name: string | null
-  sector: string | null
+  sector_id: string
+  sector_name: string | null
   due_date: string
   completed: boolean
   completed_at: string | null
@@ -27,7 +28,8 @@ function toDelivery(dto: DeliveryDTO): Delivery {
     assignedToId: dto.assigned_to_id ?? undefined,
     assignedToName: dto.assigned_to_name ?? '',
     assignedByName: dto.assigned_by_name ?? undefined,
-    sector: dto.sector ?? '',
+    sectorId: dto.sector_id,
+    sector: dto.sector_name ?? '',
     dueDate: dto.due_date.slice(0, 10),
     completed: dto.completed,
     completedAt: dto.completed_at ?? undefined,
@@ -42,7 +44,7 @@ export interface DeliveryInput {
   description?: string
   assignedToName: string
   assignedByName?: string
-  sector?: string
+  sectorId: string
   dueDate: string
 }
 
@@ -53,7 +55,7 @@ function toPayload(input: DeliveryInput) {
     description: input.description || null,
     assigned_to_name: input.assignedToName,
     assigned_by_name: input.assignedByName || null,
-    sector: input.sector || null,
+    sector_id: input.sectorId,
     due_date: input.dueDate,
   }
 }

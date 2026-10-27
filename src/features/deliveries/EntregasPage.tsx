@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import type { DeliverySituation } from '../../types';
 import { useDeliveries, useSetDeliveryCompleted } from './useDeliveries';
+import { useSectors } from '../sectors/useSectors';
 import { getDeliverySituation } from './deliverySituation';
 import { formatDate } from '../../lib/format';
 
@@ -27,7 +28,7 @@ const SITUATION_STYLES: Record<DeliverySituation, { label: string; className: st
   'CONCLUIDO COM ATRASO': { label: 'Concluído com atraso', className: 'bg-orange-50 text-orange-700 border-orange-200', Icon: CheckCircle2 },
 };
 
-// Botões de filtro
+// Botões de filtro por situação
 const FILTERS: { value: FilterOption; label: string; activeClass: string }[] = [
   { value: 'TODOS', label: 'Todos', activeClass: 'bg-slate-900 text-white' },
   { value: 'NO PRAZO', label: 'No prazo', activeClass: 'bg-blue-600 text-white' },
@@ -44,18 +45,23 @@ function matchesFilter(situation: DeliverySituation, filter: FilterOption): bool
 
 export const EntregasPage: React.FC = () => {
   const { data: deliveries = [], isLoading, isError, error, refetch } = useDeliveries();
+  const { data: sectors = [] } = useSectors();
   const setCompleted = useSetDeliveryCompleted();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState<FilterOption>('TODOS');
+  const [sectorFilter, setSectorFilter] = useState(''); // '' = todos os setores
 
-  // Cada entrega com a sua situação calculada para hoje
-  const withSituation = useMemo(
-    () => deliveries.map((d) => ({ ...d, situation: getDeliverySituation(d) })),
-    [deliveries]
+  // Entregas do setor escolhido, cada uma com a sua situação calculada
+  const sectorDeliveries = useMemo(
+    () =>
+      deliveries
+        .filter((d) => !sectorFilter || d.sectorId === sectorFilter)
+        .map((d) => ({ ...d, situation: getDeliverySituation(d) })),
+    [deliveries, sectorFilter]
   );
 
-  // Quantidade de entregas em cada filtro
+  // Quantidade em cada filtro (dentro do setor escolhido)
   const counts = useMemo(() => {
     const result: Record<FilterOption, number> = {
       TODOS: 0,
@@ -64,24 +70,24 @@ export const EntregasPage: React.FC = () => {
       ATRASADO: 0,
       CONCLUIDOS: 0,
     };
-    for (const d of withSituation) {
+    for (const d of sectorDeliveries) {
       for (const f of FILTERS) {
         if (matchesFilter(d.situation, f.value)) result[f.value] += 1;
       }
     }
     return result;
-  }, [withSituation]);
+  }, [sectorDeliveries]);
 
-  // Busca + filtro
+  // Busca + filtro de situação
   const term = searchTerm.trim().toLowerCase();
-  const filteredDeliveries = withSituation.filter((d) => {
+  const filteredDeliveries = sectorDeliveries.filter((d) => {
     const matchesSearch =
       !term ||
-      [d.title, d.assignedToName, d.sector].some((value) =>
-        value.toLowerCase().includes(term)
-      );
+      [d.title, d.assignedToName, d.sector].some((value) => value.toLowerCase().includes(term));
     return matchesSearch && matchesFilter(d.situation, filter);
   });
+
+  const selectedSectorName = sectors.find((s) => s.id === sectorFilter)?.name;
 
   const toggleComplete = (id: string, completed: boolean) => {
     setCompleted.mutate(
@@ -93,11 +99,32 @@ export const EntregasPage: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Cabeçalho */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Gestão de Entregas</h1>
-        <p className="text-sm text-slate-500">
-          Acompanhe o progresso, prazos e responsabilidades de todas as entregas.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">
+            Gestão de Entregas{selectedSectorName && ` · ${selectedSectorName}`}
+          </h1>
+          <p className="text-sm text-slate-500">
+            Acompanhe as atividades, prazos e responsáveis de cada setor.
+          </p>
+        </div>
+
+        {/* Filtro por setor */}
+        <div className="relative w-full sm:w-64">
+          <Building className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+          <select
+            value={sectorFilter}
+            onChange={(e) => setSectorFilter(e.target.value)}
+            className="w-full bg-white border border-slate-300 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+          >
+            <option value="">Todos os setores</option>
+            {sectors.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Barra de Pesquisa e Filtros */}
@@ -106,7 +133,7 @@ export const EntregasPage: React.FC = () => {
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"
-            placeholder="Pesquisar por título, responsável, setor ou projeto..."
+            placeholder="Pesquisar por título, responsável ou setor..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-10 pr-4 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
@@ -164,7 +191,7 @@ export const EntregasPage: React.FC = () => {
               )}
 
               {filteredDeliveries.map((delivery) => {
-                const style = SITUATION_STYLES[delivery.situation as DeliverySituation];
+                const style = SITUATION_STYLES[delivery.situation];
                 const isUpdating = setCompleted.isPending && setCompleted.variables?.id === delivery.id;
 
                 return (
@@ -194,7 +221,7 @@ export const EntregasPage: React.FC = () => {
                     <td className="py-3.5 px-4 text-sm text-slate-600">
                       <span className="inline-flex items-center gap-2">
                         <Building className="w-4 h-4" />
-                        {delivery.sector || 'Geral'}
+                        {delivery.sector}
                       </span>
                     </td>
                     <td className="py-3.5 px-4 text-sm text-slate-600">
@@ -218,7 +245,7 @@ export const EntregasPage: React.FC = () => {
                   <td colSpan={6} className="py-8 text-center text-sm text-slate-500">
                     {deliveries.length === 0
                       ? 'Nenhuma entrega cadastrada ainda. Use "Lançar Entrega" para começar.'
-                      : 'Nenhuma entrega encontrada para essa busca ou filtro.'}
+                      : 'Nenhuma entrega encontrada para esse setor, busca ou filtro.'}
                   </td>
                 </tr>
               )}
