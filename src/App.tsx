@@ -1,3 +1,4 @@
+import { can } from './lib/permissions';
 import React, { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthPage } from './features/auth/AuthPage';
@@ -18,13 +19,20 @@ const MainLayout: React.FC = () => {
   // Modal de entrega aberto: 'launch', 'assign' ou null (fechado)
   const [deliveryModal, setDeliveryModal] = useState<DeliveryFormMode | null>(null);
 
-  
-  // Se não houver utilizador autenticado, exibe a tela de Login / Cadastro
-  if (isLoading){ 
+  // Enquanto confere a sessão com o backend, não mostra nada
+  if (isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-100 text-sm text-slate-500">
+        Carregando...
+      </div>
+    );
+  }
+
+  // Sem sessão: mostra a tela de login
   if (!user) {
     return <AuthPage />;
   }
-}
+
   // Renderização dinâmica do conteúdo conforme a aba selecionada no menu
   const renderContent = () => {
     switch (currentTab) {
@@ -32,7 +40,7 @@ const MainLayout: React.FC = () => {
         return <DashboardPage />;
       case 'team':
       case 'equipe':
-        return <EquipePage />;
+        return can(user.role, 'team:view') ? <EquipePage /> : <DashboardPage />;
       case 'projects':
       case 'projetos':
         return <ProjetosPage />;

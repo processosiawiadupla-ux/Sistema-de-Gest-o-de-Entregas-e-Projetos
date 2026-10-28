@@ -12,7 +12,7 @@ import {
   UserPlus,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { canAssignDeliveries } from '../../lib/permissions';
+import { can, canAssignDeliveries } from '../../lib/permissions';
 
 interface SidebarProps {
   currentTab: string;
@@ -78,15 +78,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <span>Dashboard</span>
           </button>
 
-          <button
-            onClick={() => setCurrentTab('equipe')}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-              currentTab === 'equipe' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'hover:bg-slate-800/60 text-slate-300'
-            }`}
-          >
-            <Users className="w-4 h-4" />
-            <span>Equipe</span>
-          </button>
+                    {can(user?.role, 'team:view') && (
+            <button
+              onClick={() => setCurrentTab('equipe')}
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                currentTab === 'equipe' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'hover:bg-slate-800/60 text-slate-300'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              <span>Equipe</span>
+            </button>
+          )}
 
           <button
             onClick={() => setCurrentTab('projetos')}
@@ -105,7 +107,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             }`}
           >
             <CalendarDays className="w-4 h-4" />
-            <span>Agenda de Entregas</span>
+            <span>Entregas</span>
           </button>
 
           <button
