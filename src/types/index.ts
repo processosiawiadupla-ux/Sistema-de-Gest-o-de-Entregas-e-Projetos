@@ -50,6 +50,7 @@ export interface ProjectStage {
   completed: boolean;
   assignedToId?: string;
 }
+
 // 6. Situação da entrega (calculada a partir do prazo e da conclusão, nunca guardada)
 export type DeliverySituation =
   | 'NO PRAZO'
@@ -58,7 +59,17 @@ export type DeliverySituation =
   | 'CONCLUIDO'
   | 'CONCLUIDO COM ATRASO';
 
-// 6.1 Entregas (atividades atribuídas a pessoas, com ou sem projeto)
+// 6.1 Etapa de uma entrega (1, 5 ou 10 por entrega)
+export interface DeliveryStage {
+  id: string;
+  position: number;
+  title: string;
+  dueDate: string;
+  completed: boolean;
+  completedAt?: string;
+}
+
+// 6.2 Entrega
 export interface Delivery {
   id: string;
   title: string;
@@ -69,12 +80,34 @@ export interface Delivery {
   sectorId: string;
   sector: string;
   dueDate: string;
+  stageCount: number;
+  progress: number;
+  stages: DeliveryStage[];
   completed: boolean;
   completedAt?: string;
   commentsCount: number;
   createdAt?: string;
 }
 
+// 6.3 Lançamento no histórico de uma entrega
+export interface DeliveryUpdate {
+  id: string;
+  authorName: string;
+  doneText: string;
+  missingText?: string;
+  progress: number;
+  stageTitle?: string;
+  stagePosition?: number;
+  createdAt: string;
+}
+
+// 6.4 Pessoa que pode receber uma entrega
+export interface Assignee {
+  id: string;
+  name: string;
+  role: UserRole;
+  sectorId: string | null;
+}
 // 9. Setores da empresa
 export interface Sector {
   id: string;

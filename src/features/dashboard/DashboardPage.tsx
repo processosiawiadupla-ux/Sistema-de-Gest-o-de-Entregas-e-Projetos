@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { can } from '../../lib/permissions';
 import { AlertTriangle, AlertCircle, Calendar, User } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useDeliveries } from '../deliveries/useDeliveries';
@@ -55,8 +56,8 @@ const DeliveryList: React.FC<{ items: Delivery[]; emptyText: string }> = ({ item
 
 export const DashboardPage: React.FC = () => {
   const { user } = useAuth();
-  const { data: deliveries = [], isLoading, isError, error, refetch } = useDeliveries();
-
+  const scope = can(user?.role, 'deliveries:view_team') ? 'team' : 'mine';
+  const { data: deliveries = [], isLoading, isError, error, refetch } = useDeliveries(scope);
   // Saudação e data de hoje
   const now = new Date();
   const greeting = getGreeting(now.getHours());

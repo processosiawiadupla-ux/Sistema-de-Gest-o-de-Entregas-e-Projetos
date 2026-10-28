@@ -1,4 +1,3 @@
-import { can } from './lib/permissions';
 import React, { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthPage } from './features/auth/AuthPage';
@@ -10,14 +9,17 @@ import { EntregasPage } from './features/deliveries/EntregasPage';
 import { RelatoriosPage } from './features/reports/RelatoriosPage';
 import { PerfilPage } from './features/profile/PerfilPage';
 import { ConfiguracoesPage } from './features/settings/ConfiguracoesPage';
-import { DeliveryFormModal, type DeliveryFormMode } from './features/deliveries/DeliveryFormModal';
+import { LaunchModal } from './features/deliveries/LaunchModal';
+import { AssignModal } from './features/deliveries/AssignModal';
+import { can } from './lib/permissions';
+
+type DeliveryModal = 'launch' | 'assign' | null;
 
 // Componente do layout protegido por autenticação
 const MainLayout: React.FC = () => {
   const { user, isLoading } = useAuth();
   const [currentTab, setCurrentTab] = useState('dashboard');
-  // Modal de entrega aberto: 'launch', 'assign' ou null (fechado)
-  const [deliveryModal, setDeliveryModal] = useState<DeliveryFormMode | null>(null);
+  const [deliveryModal, setDeliveryModal] = useState<DeliveryModal>(null);
 
   // Enquanto confere a sessão com o backend, não mostra nada
   if (isLoading) {
@@ -33,26 +35,23 @@ const MainLayout: React.FC = () => {
     return <AuthPage />;
   }
 
-  // Renderização dinâmica do conteúdo conforme a aba selecionada no menu
+  const canViewTeam = can(user.role, 'deliveries:view_team');
+
+  // Cada tela confere a permissão antes de aparecer
   const renderContent = () => {
     switch (currentTab) {
-      case 'dashboard':
-        return <DashboardPage />;
-      case 'team':
-      case 'equipe':
-        return can(user.role, 'team:view') ? <EquipePage /> : <DashboardPage />;
-      case 'projects':
+      case 'minhas-entregas':
+        return <EntregasPage key="mine" scope="mine" />;
+      case 'entregas-equipe':
+        return canViewTeam ? <EntregasPage key="team" scope="team" /> : <DashboardPage />;
       case 'projetos':
         return <ProjetosPage />;
-      case 'deliveries':
-      case 'entregas':
-        return <EntregasPage />;
-      case 'reports':
+      case 'equipe':
+        return can(user.role, 'team:view') ? <EquipePage /> : <DashboardPage />;
       case 'relatorios':
-        return <RelatoriosPage />;
+        return canViewTeam ? <RelatoriosPage /> : <DashboardPage />;
       case 'profile':
         return <PerfilPage />;
-      case 'settings':
       case 'configuracoes':
         return <ConfiguracoesPage />;
       default:
@@ -68,15 +67,19 @@ const MainLayout: React.FC = () => {
         onOpenNewDelivery={() => setDeliveryModal('launch')}
         onOpenAssignDelivery={() => setDeliveryModal('assign')}
       />
-      <main className="flex-1 overflow-y-auto p-8">
-        {renderContent()}
-      </main>
+      <main className="flex-1 overflow-y-auto p-8">{renderContent()}</main>
 
-      {deliveryModal && (
-        <DeliveryFormModal
-          mode={deliveryModal}
+      {deliveryModal === 'launch' && (
+        <LaunchModal
           onClose={() => setDeliveryModal(null)}
-          onCreated={() => setCurrentTab('entregas')}
+          onLaunched={() => setCurrentTab('minhas-entregas')}
+        />
+      )}
+
+      {deliveryModal === 'assign' && (
+        <AssignModal
+          onClose={() => setDeliveryModal(null)}
+          onCreated={() => setCurrentTab('entregas-equipe')}
         />
       )}
     </div>

@@ -1,24 +1,33 @@
 import React from 'react';
 import {
   LayoutDashboard,
+  ClipboardList,
+  CalendarDays,
   Users,
   FolderKanban,
-  CalendarDays,
   BarChart3,
   User,
   Settings,
   LogOut,
   PlusCircle,
   UserPlus,
+  type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { can, canAssignDeliveries } from '../../lib/permissions';
+import { can } from '../../lib/permissions';
 
 interface SidebarProps {
   currentTab: string;
   setCurrentTab: (tab: string) => void;
   onOpenNewDelivery: () => void;
   onOpenAssignDelivery: () => void;
+}
+
+interface NavItem {
+  tab: string;
+  label: string;
+  Icon: LucideIcon;
+  visible: boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -28,12 +37,35 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenAssignDelivery,
 }) => {
   const { user, logout } = useAuth();
-  const showAssign = canAssignDeliveries(user?.role);
+  const role = user?.role;
+
+  // Seções do menu: cada item aparece só para quem tem a permissão
+  const sections: { title?: string; items: NavItem[] }[] = [
+    { items: [{ tab: 'dashboard', label: 'Dashboard', Icon: LayoutDashboard, visible: true }] },
+    {
+      title: 'Entregas',
+      items: [
+        { tab: 'minhas-entregas', label: 'Minhas entregas', Icon: ClipboardList, visible: true },
+        { tab: 'entregas-equipe', label: 'Entregas da equipe', Icon: CalendarDays, visible: can(role, 'deliveries:view_team') },
+      ],
+    },
+    {
+      title: 'Projetos',
+      items: [{ tab: 'projetos', label: 'Projetos', Icon: FolderKanban, visible: true }],
+    },
+    {
+      title: 'Gestão',
+      items: [
+        { tab: 'equipe', label: 'Equipe', Icon: Users, visible: can(role, 'team:view') },
+        { tab: 'relatorios', label: 'Relatórios', Icon: BarChart3, visible: can(role, 'deliveries:view_team') },
+      ],
+    },
+  ];
 
   return (
-    <aside className="w-64 bg-[#0A192F] text-slate-300 flex flex-col h-screen justify-between border-r border-slate-800">
-      {/* Topo: Logótipo e Botões de Ação */}
-      <div className="p-6">
+    <aside className="w-64 bg-[#0A192F] text-slate-300 flex flex-col h-screen border-r border-slate-800">
+      {/* Topo: marca, ações e menu (rola se a tela for baixa) */}
+      <div className="p-6 flex-1 overflow-y-auto">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-blue-500/30">
             W
@@ -45,8 +77,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         <div className="space-y-2 mb-6">
-          {/* Atribuir: só ADMIN e LIDER */}
-          {showAssign && (
+          {can(role, 'deliveries:assign') && (
             <button
               onClick={onOpenAssignDelivery}
               className="w-full border border-blue-500/50 text-blue-300 hover:bg-blue-600/15 hover:text-white font-medium py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-all text-sm cursor-pointer"
@@ -55,8 +86,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span>Atribuir Entrega</span>
             </button>
           )}
-
-          {/* Lançar: todos os papéis */}
           <button
             onClick={onOpenNewDelivery}
             className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 transition-all text-sm cursor-pointer"
@@ -66,67 +95,44 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </div>
 
-        {/* Menu de Navegação */}
-        <nav className="space-y-1.5">
-          <button
-            onClick={() => setCurrentTab('dashboard')}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-              currentTab === 'dashboard' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'hover:bg-slate-800/60 text-slate-300'
-            }`}
-          >
-            <LayoutDashboard className="w-4 h-4" />
-            <span>Dashboard</span>
-          </button>
+        <nav className="space-y-4">
+          {sections.map((section, index) => {
+            const items = section.items.filter((item) => item.visible);
+            if (items.length === 0) return null;
 
-                    {can(user?.role, 'team:view') && (
-            <button
-              onClick={() => setCurrentTab('equipe')}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                currentTab === 'equipe' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'hover:bg-slate-800/60 text-slate-300'
-              }`}
-            >
-              <Users className="w-4 h-4" />
-              <span>Equipe</span>
-            </button>
-          )}
-
-          <button
-            onClick={() => setCurrentTab('projetos')}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-              currentTab === 'projetos' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'hover:bg-slate-800/60 text-slate-300'
-            }`}
-          >
-            <FolderKanban className="w-4 h-4" />
-            <span>Projetos</span>
-          </button>
-
-          <button
-            onClick={() => setCurrentTab('entregas')}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-              currentTab === 'entregas' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'hover:bg-slate-800/60 text-slate-300'
-            }`}
-          >
-            <CalendarDays className="w-4 h-4" />
-            <span>Entregas</span>
-          </button>
-
-          <button
-            onClick={() => setCurrentTab('relatorios')}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-              currentTab === 'relatorios' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'hover:bg-slate-800/60 text-slate-300'
-            }`}
-          >
-            <BarChart3 className="w-4 h-4" />
-            <span>Relatórios</span>
-          </button>
+            return (
+              <div key={index} className="space-y-1">
+                {section.title && (
+                  <p className="px-3.5 pb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+                    {section.title}
+                  </p>
+                )}
+                {items.map((item) => (
+                  <button
+                    key={item.tab}
+                    onClick={() => setCurrentTab(item.tab)}
+                    aria-current={currentTab === item.tab ? 'page' : undefined}
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer ${
+                      currentTab === item.tab
+                        ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
+                        : 'hover:bg-slate-800/60 text-slate-300'
+                    }`}
+                  >
+                    <item.Icon className="w-4 h-4" />
+                    <span>{item.label}</span>
+                  </button>
+                ))}
+              </div>
+            );
+          })}
         </nav>
       </div>
 
-      {/* Rodapé da Barra Lateral */}
+      {/* Rodapé */}
       <div className="p-4 border-t border-slate-800/80 space-y-1">
         <button
           onClick={() => setCurrentTab('profile')}
-          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
             currentTab === 'profile' ? 'bg-blue-600/20 text-blue-400' : 'hover:bg-slate-800 text-slate-300'
           }`}
         >
@@ -135,7 +141,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
         <button
           onClick={() => setCurrentTab('configuracoes')}
-          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
             currentTab === 'configuracoes' ? 'bg-blue-600/20 text-blue-400' : 'hover:bg-slate-800 text-slate-300'
           }`}
         >
@@ -153,7 +159,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <p className="text-[10px] text-blue-400 font-semibold tracking-wider">{user?.role ?? ''}</p>
             </div>
           </div>
-
           <button
             onClick={logout}
             title="Sair do sistema"

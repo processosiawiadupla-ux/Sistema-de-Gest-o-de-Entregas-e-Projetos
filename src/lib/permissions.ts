@@ -8,6 +8,7 @@ const PERMISSIONS = {
   'team:view': ['ADMIN', 'LIDER'],
   'team:invite': ['ADMIN', 'LIDER'], 
   'admin:access': ['ADMIN'],
+  'deliveries:view_team': ['ADMIN', 'LIDER'],
 } as const satisfies Record<string, readonly UserRole[]>
 
 export type Permission = keyof typeof PERMISSIONS
