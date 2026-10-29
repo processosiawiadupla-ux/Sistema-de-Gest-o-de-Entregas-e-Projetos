@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { SetPasswordPage } from './features/auth/SetPasswordPage';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthPage } from './features/auth/AuthPage';
+import { SetPasswordPage } from './features/auth/SetPasswordPage';
 import { Sidebar } from './components/Layout/Sidebar';
 import { DashboardPage } from './features/dashboard/DashboardPage';
 import { EquipePage } from './features/team/EquipePage';
@@ -17,13 +17,14 @@ import { can } from './lib/permissions';
 type DeliveryModal = 'launch' | 'assign' | null;
 
 // Componente do layout protegido por autenticação
-  const MainLayout: React.FC = () => {
+const MainLayout: React.FC = () => {
   const { user, isLoading } = useAuth();
   const [currentTab, setCurrentTab] = useState('dashboard');
   const [deliveryModal, setDeliveryModal] = useState<DeliveryModal>(null);
-    // Endereço atual: /criar-senha abre a tela de criar senha (link do e-mail)
+  // Endereço atual: /criar-senha abre a tela de criar senha (link do e-mail)
   const [path, setPath] = useState(window.location.pathname);
-    // Link do e-mail: tela de criar senha, com ou sem sessão aberta
+
+  // 1. Link do e-mail: tela de criar senha, com ou sem sessão aberta
   if (path === '/criar-senha') {
     return (
       <SetPasswordPage
@@ -36,7 +37,7 @@ type DeliveryModal = 'launch' | 'assign' | null;
     );
   }
 
-  // Enquanto confere a sessão com o backend, não mostra nada
+  // 2. Enquanto confere a sessão com o backend, não mostra nada
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-100 text-sm text-slate-500">
@@ -45,14 +46,14 @@ type DeliveryModal = 'launch' | 'assign' | null;
     );
   }
 
-  // Sem sessão: mostra a tela de login
+  // 3. Sem sessão: mostra a tela de login
   if (!user) {
     return <AuthPage />;
   }
 
+  // 4. Com sessão: cada tela confere a permissão antes de aparecer
   const canViewTeam = can(user.role, 'deliveries:view_team');
 
-  // Cada tela confere a permissão antes de aparecer
   const renderContent = () => {
     switch (currentTab) {
       case 'minhas-entregas':
@@ -60,7 +61,7 @@ type DeliveryModal = 'launch' | 'assign' | null;
       case 'entregas-equipe':
         return canViewTeam ? <EntregasPage key="team" scope="team" /> : <DashboardPage />;
       case 'projetos':
-        return <ProjetosPage />;
+        return can(user.role, 'projects:view') ? <ProjetosPage /> : <DashboardPage />;
       case 'equipe':
         return can(user.role, 'team:view') ? <EquipePage /> : <DashboardPage />;
       case 'relatorios':
@@ -68,7 +69,7 @@ type DeliveryModal = 'launch' | 'assign' | null;
       case 'profile':
         return <PerfilPage />;
       case 'configuracoes':
-      return can(user.role, 'settings:access') ? <ConfiguracoesPage /> : <DashboardPage />;
+        return can(user.role, 'settings:access') ? <ConfiguracoesPage /> : <DashboardPage />;
       default:
         return <DashboardPage />;
     }

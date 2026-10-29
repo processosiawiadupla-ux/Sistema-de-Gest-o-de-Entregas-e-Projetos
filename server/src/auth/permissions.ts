@@ -3,6 +3,7 @@ import type { AuthUser, UserRole } from './types.js';
 // Cada ação do sistema e os papéis que podem executá-la
 const PERMISSIONS = {
   'deliveries:view_team': ['ADMIN', 'LIDER'],
+  'projects:view': ['ADMIN', 'LIDER'],
   'deliveries:assign': ['ADMIN', 'LIDER'],
   'deliveries:edit': ['ADMIN', 'LIDER'],
   'deliveries:delete': ['ADMIN', 'LIDER'],

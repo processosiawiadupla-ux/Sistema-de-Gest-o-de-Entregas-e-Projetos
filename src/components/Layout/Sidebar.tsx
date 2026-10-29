@@ -49,9 +49,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { tab: 'entregas-equipe', label: 'Entregas da equipe', Icon: CalendarDays, visible: can(role, 'deliveries:view_team') },
       ],
     },
-    {
+        {
       title: 'Projetos',
-      items: [{ tab: 'projetos', label: 'Projetos', Icon: FolderKanban, visible: true }],
+      items: [{ tab: 'projetos', label: 'Projetos', Icon: FolderKanban, visible: can(role, 'projects:view') }],
     },
     {
       title: 'Gestão',

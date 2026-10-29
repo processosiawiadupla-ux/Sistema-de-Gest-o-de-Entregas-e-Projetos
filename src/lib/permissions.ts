@@ -4,6 +4,7 @@ import type { UserRole } from '../types'
 // Aqui ela só esconde menus e botões; quem protege os dados é o backend.
 const PERMISSIONS = {
   'deliveries:assign': ['ADMIN', 'LIDER'],
+  'projects:view': ['ADMIN', 'LIDER'],
   'projects:manage': ['ADMIN', 'LIDER'],
   'team:view': ['ADMIN', 'LIDER'],
   'team:invite': ['ADMIN', 'LIDER'], 

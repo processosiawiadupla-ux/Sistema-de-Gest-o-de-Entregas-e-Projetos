@@ -1,6 +1,7 @@
 import { Router, type Response } from 'express';
 import type { ZodError } from 'zod';
 import { pool } from '../config/database.js';
+import { requirePermission } from '../auth/authorize.js';
 import {
   createProjectSchema,
   projectIdSchema,
@@ -44,8 +45,8 @@ function toValues(data: CreateProjectInput) {
   ];
 }
 
-// Listar projetos, com o nome do setor
-router.get('/projects', async (_req, res) => {
+// Listar projetos, com o nome do setor (ADMIN e LIDER)
+router.get('/projects', requirePermission('projects:view'), async (_req, res) => {
   const query = `
     SELECT p.*, s.name AS sector_name
     FROM projects p
@@ -63,7 +64,7 @@ router.get('/projects', async (_req, res) => {
 });
 
 // Criar projeto
-router.post('/projects', async (req, res) => {
+router.post('/projects', requirePermission('projects:manage'), async (req, res) => {
   const parsed = createProjectSchema.safeParse(req.body);
   if (!parsed.success) {
     sendValidationError(res, parsed.error);
@@ -90,7 +91,7 @@ router.post('/projects', async (req, res) => {
 });
 
 // Editar projeto
-router.put('/projects/:id', async (req, res) => {
+router.put('/projects/:id', requirePermission('projects:manage'), async (req, res) => {
   const id = projectIdSchema.safeParse(req.params.id);
   if (!id.success) {
     sendNotFound(res);
@@ -135,7 +136,7 @@ router.put('/projects/:id', async (req, res) => {
 });
 
 // Excluir projeto
-router.delete('/projects/:id', async (req, res) => {
+router.delete('/projects/:id', requirePermission('projects:manage'), async (req, res) => {
   const id = projectIdSchema.safeParse(req.params.id);
   if (!id.success) {
     sendNotFound(res);
