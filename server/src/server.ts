@@ -2,6 +2,7 @@ import { env } from './config/env.js';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import { initializeDatabase } from './config/initDb.js';
+import { verifyMailer } from './mail/mailer.js';
 import { authenticate } from './auth/authenticate.js';
 import { requirePermission } from './auth/authorize.js';
 import authRoutes from './routes/authRoutes.js';
@@ -9,6 +10,7 @@ import projectRoutes from './routes/projectRoutes.js';
 import deliveryRoutes from './routes/deliveryRoutes.js';
 import sectorRoutes from './routes/sectorRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import teamRoutes from './routes/teamRoutes.js';
 
 const app = express();
 
@@ -19,7 +21,7 @@ app.set('trust proxy', 1);
 app.use(express.json());
 app.use(cookieParser());
 
-// 1. Rotas públicas: login e sair
+// 1. Rotas públicas: login, sair, conferir link e criar senha
 app.use('/api', authRoutes);
 
 // 2. Daqui para baixo, tudo exige login
@@ -32,9 +34,11 @@ app.use('/api/admin', requirePermission('admin:access'), adminRoutes);
 app.use('/api', projectRoutes);
 app.use('/api', deliveryRoutes);
 app.use('/api', sectorRoutes);
+app.use('/api', teamRoutes);
 
-// Iniciar servidor e inicializar base de dados
+// Iniciar servidor, banco e e-mail
 app.listen(env.PORT, async () => {
   console.log(`Servidor a correr na porta ${env.PORT}`);
   await initializeDatabase();
+  await verifyMailer();
 });

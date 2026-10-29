@@ -6,9 +6,10 @@ export type User = AuthUser;
 
 interface AuthContextType {
   user: AuthUser | null;
-  isLoading: boolean;                                    // conferindo a sessão ao abrir
+  isLoading: boolean;                                              // conferindo a sessão ao abrir
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  setPassword: (token: string, password: string) => Promise<void>; // criar senha pelo link do e-mail
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -26,6 +27,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   }, []);
 
+  // Se o backend avisar que a sessão expirou, volta para a tela de login
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      queryClient.clear();
+      setUser(null);
+    };
+    window.addEventListener('wiaflow:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('wiaflow:unauthorized', handleUnauthorized);
+  }, [queryClient]);
+
   const login = async (email: string, password: string) => {
     const loggedUser = await authService.login(email, password);
     queryClient.clear(); // descarta dados de uma sessão anterior
@@ -41,8 +52,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Cria a senha pelo link do e-mail e já entra no sistema
+  const setPassword = async (token: string, password: string) => {
+    const loggedUser = await authService.setPassword(token, password);
+    queryClient.clear();
+    setUser(loggedUser);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, setPassword }}>
       {children}
     </AuthContext.Provider>
   );

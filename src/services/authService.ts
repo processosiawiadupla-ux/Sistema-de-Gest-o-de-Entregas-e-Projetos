@@ -52,4 +52,16 @@ export const authService = {
       return null
     }
   },
+    // Confere um link de convite ou de redefinição antes de mostrar o formulário
+  async checkToken(token: string): Promise<{ name: string; email: string; purpose: 'INVITE' | 'RESET' }> {
+    const response = await api.get(`/auth/tokens/${encodeURIComponent(token)}`)
+    return response.data
+  },
+
+  // Cria a senha a partir do link e já entra no sistema
+  async setPassword(token: string, password: string): Promise<AuthUser> {
+    const response = await api.post<AuthUserDTO>('/auth/set-password', { token, password })
+    return toAuthUser(response.data)
+  },
 }
+

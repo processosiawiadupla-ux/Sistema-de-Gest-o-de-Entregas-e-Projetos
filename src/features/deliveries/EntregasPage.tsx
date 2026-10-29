@@ -25,9 +25,10 @@ import { ProgressBar } from './ProgressBar';
 import { DeliveryDetails } from './DeliveryDetails';
 import { LaunchModal } from './LaunchModal';
 
-type FilterOption = 'TODOS' | 'NO PRAZO' | 'EM RISCO' | 'ATRASADO' | 'CONCLUIDOS';
+type FilterOption = 'PENDENTES' | 'TODOS' | 'NO PRAZO' | 'EM RISCO' | 'ATRASADO' | 'CONCLUIDOS';
 
 const SITUATION_STYLES: Record<DeliverySituation, { label: string; className: string; Icon: LucideIcon }> = {
+  
   'NO PRAZO': { label: 'No prazo', className: 'bg-blue-50 text-blue-700 border-blue-200', Icon: Clock },
   'EM RISCO': { label: 'Em risco', className: 'bg-amber-50 text-amber-700 border-amber-200', Icon: AlertCircle },
   'ATRASADO': { label: 'Atrasado', className: 'bg-rose-50 text-rose-700 border-rose-200', Icon: AlertTriangle },
@@ -36,6 +37,7 @@ const SITUATION_STYLES: Record<DeliverySituation, { label: string; className: st
 };
 
 const FILTERS: { value: FilterOption; label: string; activeClass: string }[] = [
+  { value: 'PENDENTES', label: 'Pendentes', activeClass: 'bg-blue-700 text-white' },
   { value: 'TODOS', label: 'Todos', activeClass: 'bg-slate-900 text-white' },
   { value: 'NO PRAZO', label: 'No prazo', activeClass: 'bg-blue-600 text-white' },
   { value: 'EM RISCO', label: 'Em risco', activeClass: 'bg-amber-500 text-white' },
@@ -44,8 +46,10 @@ const FILTERS: { value: FilterOption; label: string; activeClass: string }[] = [
 ];
 
 function matchesFilter(situation: DeliverySituation, filter: FilterOption): boolean {
+  const isDone = situation === 'CONCLUIDO' || situation === 'CONCLUIDO COM ATRASO';
   if (filter === 'TODOS') return true;
-  if (filter === 'CONCLUIDOS') return situation === 'CONCLUIDO' || situation === 'CONCLUIDO COM ATRASO';
+  if (filter === 'PENDENTES') return !isDone;
+  if (filter === 'CONCLUIDOS') return isDone;
   return situation === filter;
 }
 
@@ -63,7 +67,7 @@ export const EntregasPage: React.FC<{ scope: DeliveryScope }> = ({ scope }) => {
   );
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [filter, setFilter] = useState<FilterOption>('TODOS');
+  const [filter, setFilter] = useState<FilterOption>(isTeam ? 'TODOS' : 'PENDENTES');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [launchFor, setLaunchFor] = useState<string | null>(null);
 
@@ -72,8 +76,8 @@ export const EntregasPage: React.FC<{ scope: DeliveryScope }> = ({ scope }) => {
     [deliveries]
   );
 
-  const counts = useMemo(() => {
-    const result: Record<FilterOption, number> = { TODOS: 0, 'NO PRAZO': 0, 'EM RISCO': 0, ATRASADO: 0, CONCLUIDOS: 0 };
+    const counts = useMemo(() => {
+    const result: Record<FilterOption, number> = { PENDENTES: 0, TODOS: 0, 'NO PRAZO': 0, 'EM RISCO': 0, ATRASADO: 0, CONCLUIDOS: 0 };
     for (const d of withSituation) {
       for (const f of FILTERS) {
         if (matchesFilter(d.situation, f.value)) result[f.value] += 1;
@@ -169,12 +173,14 @@ export const EntregasPage: React.FC<{ scope: DeliveryScope }> = ({ scope }) => {
       {isLoading && <p className="text-sm text-slate-500">Carregando entregas...</p>}
 
       {!isLoading && !isError && filtered.length === 0 && (
-        <p className="text-sm text-slate-500 bg-white border border-slate-200 rounded-2xl p-8 text-center">
+                <p className="text-sm text-slate-500 bg-white border border-slate-200 rounded-2xl p-8 text-center">
           {deliveries.length === 0
             ? isTeam
               ? 'Nenhuma entrega no setor ainda. Use "Atribuir Entrega" para começar.'
               : 'Você não tem atividades atribuídas.'
-            : 'Nenhuma entrega encontrada para essa busca ou filtro.'}
+            : filter === 'PENDENTES' && !term
+              ? 'Você não tem entregas pendentes. 🎉'
+              : 'Nenhuma entrega encontrada para essa busca ou filtro.'}
         </p>
       )}
 

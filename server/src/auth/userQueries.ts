@@ -10,10 +10,11 @@ interface UserRow {
   sector_id: string | null;
   sector_name: string | null;
   password_hash: string;
+  password_changed_at: Date | null;
 }
 
 const USER_SELECT = `
-  SELECT u.id, u.name, u.email, u.role, u.status, u.sector_id,
+  SELECT u.id, u.name, u.email, u.role, u.status, u.sector_id, u.password_changed_at,
          s.name AS sector_name, u.password_hash
   FROM users u
   LEFT JOIN sectors s ON s.id = u.sector_id
@@ -37,10 +38,13 @@ export async function findUserByEmail(email: string): Promise<UserRow | null> {
 }
 
 // Busca um usuário ativo pelo id (para conferir a sessão)
-export async function findActiveUserById(id: string): Promise<AuthUser | null> {
+export async function findActiveUserById(
+  id: string
+): Promise<{ user: AuthUser; passwordChangedAt: Date | null } | null> {
   const result = await pool.query<UserRow>(
     `${USER_SELECT} WHERE u.id = $1 AND u.status = 'ATIVO';`,
     [id]
   );
-  return result.rows[0] ? toAuthUser(result.rows[0]) : null;
+  const row = result.rows[0];
+  return row ? { user: toAuthUser(row), passwordChangedAt: row.password_changed_at } : null;
 }

@@ -26,10 +26,12 @@ export function signToken(userId: string): string {
 }
 
 // Confere o token e devolve o id do usuário (ou null se for inválido ou vencido)
-export function verifyToken(token: string): string | null {
+// Confere o token e devolve o id do usuário e quando foi emitido (ou null se inválido)
+export function verifyToken(token: string): { userId: string; issuedAt: number } | null {
   try {
     const payload = jwt.verify(token, env.JWT_SECRET);
-    return typeof payload === 'object' && payload.sub ? payload.sub : null;
+    if (typeof payload !== 'object' || !payload.sub || !payload.iat) return null;
+    return { userId: payload.sub, issuedAt: payload.iat };
   } catch {
     return null;
   }

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { SetPasswordPage } from './features/auth/SetPasswordPage';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthPage } from './features/auth/AuthPage';
 import { Sidebar } from './components/Layout/Sidebar';
@@ -16,10 +17,24 @@ import { can } from './lib/permissions';
 type DeliveryModal = 'launch' | 'assign' | null;
 
 // Componente do layout protegido por autenticação
-const MainLayout: React.FC = () => {
+  const MainLayout: React.FC = () => {
   const { user, isLoading } = useAuth();
   const [currentTab, setCurrentTab] = useState('dashboard');
   const [deliveryModal, setDeliveryModal] = useState<DeliveryModal>(null);
+    // Endereço atual: /criar-senha abre a tela de criar senha (link do e-mail)
+  const [path, setPath] = useState(window.location.pathname);
+    // Link do e-mail: tela de criar senha, com ou sem sessão aberta
+  if (path === '/criar-senha') {
+    return (
+      <SetPasswordPage
+        onDone={() => {
+          // Tira o token do endereço (e do histórico do navegador) e volta ao sistema
+          window.history.replaceState(null, '', '/');
+          setPath('/');
+        }}
+      />
+    );
+  }
 
   // Enquanto confere a sessão com o backend, não mostra nada
   if (isLoading) {
@@ -53,7 +68,7 @@ const MainLayout: React.FC = () => {
       case 'profile':
         return <PerfilPage />;
       case 'configuracoes':
-        return <ConfiguracoesPage />;
+      return can(user.role, 'settings:access') ? <ConfiguracoesPage /> : <DashboardPage />;
       default:
         return <DashboardPage />;
     }

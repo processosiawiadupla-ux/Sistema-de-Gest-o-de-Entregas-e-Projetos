@@ -12,6 +12,15 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(3001),
   JWT_SECRET: z.string('Defina o JWT_SECRET no .env.').min(32, 'O JWT_SECRET precisa ter pelo menos 32 caracteres.'),
   SESSION_HOURS: z.coerce.number().positive().default(8),
+
+  // Links e e-mail
+  APP_URL: z.url('APP_URL inválida.').default('http://localhost:5173'),
+  ALLOWED_EMAIL_DOMAIN: z.string().default('wiadupla.com'),
+  MAIL_FROM: z.string().default('Wiaflow · WIADUPLA <processos.ia.wiadupla@gmail.com>'),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().default(465),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

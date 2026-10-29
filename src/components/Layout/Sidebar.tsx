@@ -139,15 +139,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <User className="w-4 h-4 text-slate-400" />
           <span>Meu perfil</span>
         </button>
-        <button
-          onClick={() => setCurrentTab('configuracoes')}
-          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-            currentTab === 'configuracoes' ? 'bg-blue-600/20 text-blue-400' : 'hover:bg-slate-800 text-slate-300'
-          }`}
-        >
-          <Settings className="w-4 h-4 text-slate-400" />
-          <span>Configurações</span>
-        </button>
+
+         {can(role, 'settings:access') && (
+          <button
+            onClick={() => setCurrentTab('configuracoes')}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+              currentTab === 'configuracoes' ? 'bg-blue-600/20 text-blue-400' : 'hover:bg-slate-800 text-slate-300'
+            }`}
+          >
+            <Settings className="w-4 h-4 text-slate-400" />
+            <span>Configurações</span>
+          </button>
+        )}
 
         <div className="pt-3 mt-2 border-t border-slate-800 flex items-center justify-between px-2">
           <div className="flex items-center gap-2.5 overflow-hidden">

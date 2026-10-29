@@ -3,6 +3,7 @@ import { UserPlus, Shield, Mail, Briefcase, Search } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { can } from '../../lib/permissions';
 import { initialUsers } from '../../services/mockData';
+import { InviteModal } from './InviteModal';
 
 // Cor de cada situação do membro
 const STATUS_STYLES: Record<string, { label: string; className: string }> = {
@@ -15,9 +16,10 @@ export const EquipePage: React.FC = () => {
   const { user: currentUser } = useAuth();
   const canInvite = can(currentUser?.role, 'team:invite');
 
-  // Por enquanto, a lista vem do mock. Na parte 3g, passa a vir do banco.
+  // Por enquanto, a lista vem do mock. Na parte 4, passa a vir do banco.
   const [members] = useState(initialUsers);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isInviteOpen, setIsInviteOpen] = useState(false);
 
   const term = searchTerm.trim().toLowerCase();
   const filteredMembers = members.filter(
@@ -53,7 +55,7 @@ export const EquipePage: React.FC = () => {
         {/* Convidar: só ADMIN e LIDER */}
         {canInvite && (
           <button
-            onClick={() => alert('Funcionalidade de convidar novo membro em breve!')}
+            onClick={() => setIsInviteOpen(true)}
             className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium px-4 py-2.5 rounded-xl shadow-lg shadow-blue-600/20 transition-all cursor-pointer"
           >
             <UserPlus className="w-4 h-4" />
@@ -144,6 +146,9 @@ export const EquipePage: React.FC = () => {
           );
         })}
       </div>
+
+      {/* Formulário de convite */}
+      {isInviteOpen && <InviteModal onClose={() => setIsInviteOpen(false)} />}
     </div>
   );
 };
