@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import React, { useMemo, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
 import { useSectors } from '../sectors/useSectors';
+import { useTeam } from './useTeam';
 import { teamService, type InviteInput } from '../../services/teamService';
 import type { ApiError } from '../../lib/api';
 import type { UserRole } from '../../types';
@@ -22,25 +23,47 @@ export const InviteModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
   const { data: sectors = [] } = useSectors();
+  const { data: team = [] } = useTeam();
+  const queryClient = useQueryClient();
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   // LIDER: sempre COLABORADOR do próprio setor
   const [role, setRole] = useState<UserRole>('COLABORADOR');
   const [sectorId, setSectorId] = useState(isAdmin ? '' : user?.sectorId ?? '');
+  // LIDER: o convidado sempre responde a ele; ADMIN escolhe
+  const [managerId, setManagerId] = useState('');
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const invite = useMutation<string, ApiError, InviteInput>({
     mutationFn: teamService.invite,
-    onSuccess: setSuccessMessage,
+    onSuccess: (message) => {
+      setSuccessMessage(message);
+      // Atualiza a lista da Equipe e de quem pode receber entregas
+      queryClient.invalidateQueries({ queryKey: ['team'] });
+      queryClient.invalidateQueries({ queryKey: ['assignees'] });
+    },
   });
+
+  // Quem pode ser o chefe: qualquer pessoa que não esteja desativada
+  const managerOptions = useMemo(
+    () => team.filter((m) => m.status !== 'INATIVO').sort((a, b) => a.name.localeCompare(b.name)),
+    [team],
+  );
 
   const emailOutsideDomain = email.length > 0 && !email.trim().toLowerCase().endsWith(`@${EMAIL_DOMAIN}`);
   const needsSector = role !== 'ADMIN';
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    invite.mutate({ name, email, role, sectorId: needsSector ? sectorId : undefined });
+    invite.mutate({
+      name,
+      email,
+      role,
+      sectorId: needsSector ? sectorId : undefined,
+      // O backend usa o próprio líder; para o ADMIN, vale a escolha
+      managerId: isAdmin ? managerId || null : undefined,
+    });
   };
 
   const inviteAnother = () => {
@@ -146,6 +169,32 @@ export const InviteModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                   ))}
                 </select>
               </div>
+            </div>
+
+            {/* Gestor direto: onde a pessoa entra no organograma */}
+            <div>
+              <label className={labelClass}>Responde a</label>
+              {isAdmin ? (
+                <select value={managerId} onChange={(e) => setManagerId(e.target.value)} className={inputClass}>
+                  <option value="">Ninguém (topo do organograma)</option>
+                  {managerOptions.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                      {m.sectorName ? ` · ${m.sectorName}` : ''}
+                      {m.status === 'PENDENTE' ? ' (convite pendente)' : ''}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <select disabled className={inputClass}>
+                  <option>{user?.name} (você)</option>
+                </select>
+              )}
+              <p className="text-xs mt-1 text-slate-500">
+                {isAdmin
+                  ? 'O chefe imediato da pessoa. Dá para mudar depois, na edição do membro.'
+                  : 'Quem você convida entra na sua equipe.'}
+              </p>
             </div>
 
             {!isAdmin && (

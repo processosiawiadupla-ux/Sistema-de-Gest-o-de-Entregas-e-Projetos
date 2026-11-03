@@ -17,6 +17,13 @@ import {
 const router = Router();
 type Db = PoolClient | typeof pool;
 
+type ProjectInfo = {
+  sector_id: string | null;
+  owner_id: string | null;
+  start_date: string | null;
+  due_date: string | null;
+};
+
 // ---------- Ajudantes ----------
 
 function sendValidationError(res: Response, error: ZodError) {
@@ -34,6 +41,8 @@ function sendNotFound(res: Response, what = 'Projeto') {
 }
 
 const FORBIDDEN_SECTOR = 'Você só pode gerenciar projetos do seu setor.';
+const FORBIDDEN_BOARD = 'Só o líder do projeto pode alterar as etapas.';
+const FORBIDDEN_MOVE = 'Você só pode mover as etapas pelas quais é responsável.';
 const INVALID_RESPONSIBLE =
   'Responsável inválido: escolha uma pessoa ativa do setor do projeto.';
 
@@ -88,18 +97,21 @@ async function findProject(db: Db, id: string) {
 }
 
 // Dados do projeto usados nas checagens de permissão e de prazo
-async function loadProjectInfo(db: Db, id: string) {
-  const result = await db.query(
-    'SELECT sector_id, start_date, due_date FROM projects WHERE id = $1;',
+async function loadProjectInfo(db: Db, id: string): Promise<ProjectInfo | null> {
+  const result = await db.query<ProjectInfo>(
+    'SELECT sector_id, owner_id, start_date, due_date FROM projects WHERE id = $1;',
     [id],
   );
-  return (result.rows[0] as
-    | { sector_id: string | null; start_date: string | null; due_date: string | null }
-    | undefined) ?? null;
+  return result.rows[0] ?? null;
+}
+
+// Quem manda no quadro: ADMIN, LIDER do setor ou o responsável principal (líder do projeto)
+function canManageBoard(user: AuthUser, project: ProjectInfo) {
+  return canActOnSector(user, project.sector_id) || project.owner_id === user.id;
 }
 
 // O responsável precisa estar ATIVO, ser do setor do projeto (se houver)
-// e, para o LIDER, ser do setor dele.
+// e, para quem não é ADMIN, ser do mesmo setor de quem está escolhendo.
 async function responsiblesAreValid(
   db: Db,
   user: AuthUser,
@@ -121,7 +133,7 @@ async function responsiblesAreValid(
 // ---------- Rotas ----------
 
 // Pessoas que podem ser responsáveis (a tela filtra pelo setor escolhido)
-router.get('/projects/assignees', requirePermission('projects:manage'), async (req, res) => {
+router.get('/projects/assignees', async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT u.id, u.name, u.sector_id, s.name AS sector_name
@@ -139,10 +151,26 @@ router.get('/projects/assignees', requirePermission('projects:manage'), async (r
   }
 });
 
-// Listar projetos com as etapas
-router.get('/projects', requirePermission('projects:view'), async (_req, res) => {
+// Listar projetos
+// ADMIN: todos | LIDER: do setor dele + os que participa | COLABORADOR: só os que participa
+router.get('/projects', requirePermission('projects:view'), async (req, res) => {
+  const user = req.user!;
+  let where = '';
+  const params: (string | null)[] = [];
+
+  if (user.role !== 'ADMIN') {
+    where = `
+      WHERE ($1::uuid IS NOT NULL AND p.sector_id = $1)
+         OR p.owner_id = $2
+         OR EXISTS (
+              SELECT 1 FROM project_stages x
+              WHERE x.project_id = p.id AND x.responsible_id = $2
+            )`;
+    params.push(user.role === 'LIDER' ? user.sectorId : null, user.id);
+  }
+
   try {
-    const result = await pool.query(`${SELECT_PROJECTS} ORDER BY p.created_at DESC;`);
+    const result = await pool.query(`${SELECT_PROJECTS} ${where} ORDER BY p.created_at DESC;`, params);
     res.json(result.rows);
   } catch (error) {
     console.error('Erro ao listar projetos:', error);
@@ -210,7 +238,7 @@ router.post('/projects', requirePermission('projects:manage'), async (req, res) 
   }
 });
 
-// Editar dados gerais do projeto
+// Editar dados gerais do projeto (ADMIN ou LIDER do setor)
 router.put('/projects/:id', requirePermission('projects:manage'), async (req, res) => {
   const id = projectIdSchema.safeParse(req.params.id);
   if (!id.success) {
@@ -293,113 +321,113 @@ router.put('/projects/:id', requirePermission('projects:manage'), async (req, re
 });
 
 // Kanban: mover um cartão de coluna
-router.patch(
-  '/projects/:id/stages/:stageId',
-  requirePermission('projects:manage'),
-  async (req, res) => {
-    const id = projectIdSchema.safeParse(req.params.id);
-    const stageId = projectIdSchema.safeParse(req.params.stageId);
-    if (!id.success || !stageId.success) {
+// Líder do quadro: qualquer cartão | Responsável da etapa: só o próprio cartão
+router.patch('/projects/:id/stages/:stageId', async (req, res) => {
+  const id = projectIdSchema.safeParse(req.params.id);
+  const stageId = projectIdSchema.safeParse(req.params.stageId);
+  if (!id.success || !stageId.success) {
+    sendNotFound(res, 'Etapa');
+    return;
+  }
+
+  const parsed = moveStageSchema.safeParse(req.body);
+  if (!parsed.success) {
+    sendValidationError(res, parsed.error);
+    return;
+  }
+
+  try {
+    const project = await loadProjectInfo(pool, id.data);
+    if (!project) {
+      sendNotFound(res);
+      return;
+    }
+
+    const stage = await pool.query<{ responsible_id: string }>(
+      'SELECT responsible_id FROM project_stages WHERE id = $1 AND project_id = $2;',
+      [stageId.data, id.data],
+    );
+    if (!stage.rows[0]) {
       sendNotFound(res, 'Etapa');
       return;
     }
 
-    const parsed = moveStageSchema.safeParse(req.body);
-    if (!parsed.success) {
-      sendValidationError(res, parsed.error);
+    const user = req.user!;
+    if (!canManageBoard(user, project) && stage.rows[0].responsible_id !== user.id) {
+      res.status(403).json({ message: FORBIDDEN_MOVE });
       return;
     }
 
-    try {
-      const project = await loadProjectInfo(pool, id.data);
-      if (!project) {
-        sendNotFound(res);
-        return;
-      }
-      if (!canActOnSector(req.user!, project.sector_id)) {
-        res.status(403).json({ message: FORBIDDEN_SECTOR });
-        return;
-      }
+    // $4 diz se a etapa foi para "Concluído" (parâmetro separado, sem conflito de tipo)
+    await pool.query(
+      `UPDATE project_stages
+       SET status = $1,
+           completed_at = CASE WHEN $4 THEN COALESCE(completed_at, NOW()) ELSE NULL END
+       WHERE id = $2 AND project_id = $3;`,
+      [parsed.data.status, stageId.data, id.data, parsed.data.status === 'done'],
+    );
+    res.json(await findProject(pool, id.data));
+  } catch (error) {
+    console.error('Erro ao mover etapa:', error);
+    res.status(500).json({ message: 'Erro ao mover etapa.' });
+  }
+});
 
-      // $4 diz se a etapa foi para "Concluído" (parâmetro separado, sem conflito de tipo)
-      const result = await pool.query(
-        `UPDATE project_stages
-         SET status = $1,
-             completed_at = CASE WHEN $4 THEN COALESCE(completed_at, NOW()) ELSE NULL END
-         WHERE id = $2 AND project_id = $3;`,
-        [parsed.data.status, stageId.data, id.data, parsed.data.status === 'done'],
-      );
-      if (result.rowCount === 0) {
-        sendNotFound(res, 'Etapa');
-        return;
-      }
-      res.json(await findProject(pool, id.data));
-    } catch (error) {
-      console.error('Erro ao mover etapa:', error);
-      res.status(500).json({ message: 'Erro ao mover etapa.' });
+// Editar título, prazo ou responsável de uma etapa (líder do quadro)
+router.put('/projects/:id/stages/:stageId', async (req, res) => {
+  const id = projectIdSchema.safeParse(req.params.id);
+  const stageId = projectIdSchema.safeParse(req.params.stageId);
+  if (!id.success || !stageId.success) {
+    sendNotFound(res, 'Etapa');
+    return;
+  }
+
+  const parsed = stageSchema.safeParse(req.body);
+  if (!parsed.success) {
+    sendValidationError(res, parsed.error);
+    return;
+  }
+  const stage = parsed.data;
+
+  try {
+    const project = await loadProjectInfo(pool, id.data);
+    if (!project) {
+      sendNotFound(res);
+      return;
     }
-  },
-);
+    if (!canManageBoard(req.user!, project)) {
+      res.status(403).json({ message: FORBIDDEN_BOARD });
+      return;
+    }
+    if (!(await responsiblesAreValid(pool, req.user!, [stage.responsible_id], project.sector_id))) {
+      res.status(400).json({ message: INVALID_RESPONSIBLE });
+      return;
+    }
 
-// Editar título, prazo ou responsável de uma etapa
-router.put(
-  '/projects/:id/stages/:stageId',
-  requirePermission('projects:manage'),
-  async (req, res) => {
-    const id = projectIdSchema.safeParse(req.params.id);
-    const stageId = projectIdSchema.safeParse(req.params.stageId);
-    if (!id.success || !stageId.success) {
+    const { start_date, due_date } = project;
+    if ((due_date && stage.due_date > due_date) || (start_date && stage.due_date < start_date)) {
+      res.status(400).json({ message: 'O prazo da etapa deve ficar dentro das datas do projeto.' });
+      return;
+    }
+
+    const result = await pool.query(
+      `UPDATE project_stages
+       SET title = $1, due_date = $2, responsible_id = $3
+       WHERE id = $4 AND project_id = $5;`,
+      [stage.title, stage.due_date, stage.responsible_id, stageId.data, id.data],
+    );
+    if (result.rowCount === 0) {
       sendNotFound(res, 'Etapa');
       return;
     }
+    res.json(await findProject(pool, id.data));
+  } catch (error) {
+    console.error('Erro ao editar etapa:', error);
+    res.status(500).json({ message: 'Erro ao editar etapa.' });
+  }
+});
 
-    const parsed = stageSchema.safeParse(req.body);
-    if (!parsed.success) {
-      sendValidationError(res, parsed.error);
-      return;
-    }
-    const stage = parsed.data;
-
-    try {
-      const project = await loadProjectInfo(pool, id.data);
-      if (!project) {
-        sendNotFound(res);
-        return;
-      }
-      if (!canActOnSector(req.user!, project.sector_id)) {
-        res.status(403).json({ message: FORBIDDEN_SECTOR });
-        return;
-      }
-      if (!(await responsiblesAreValid(pool, req.user!, [stage.responsible_id], project.sector_id))) {
-        res.status(400).json({ message: INVALID_RESPONSIBLE });
-        return;
-      }
-
-      const { start_date, due_date } = project;
-      if ((due_date && stage.due_date > due_date) || (start_date && stage.due_date < start_date)) {
-        res.status(400).json({ message: 'O prazo da etapa deve ficar dentro das datas do projeto.' });
-        return;
-      }
-
-      const result = await pool.query(
-        `UPDATE project_stages
-         SET title = $1, due_date = $2, responsible_id = $3
-         WHERE id = $4 AND project_id = $5;`,
-        [stage.title, stage.due_date, stage.responsible_id, stageId.data, id.data],
-      );
-      if (result.rowCount === 0) {
-        sendNotFound(res, 'Etapa');
-        return;
-      }
-      res.json(await findProject(pool, id.data));
-    } catch (error) {
-      console.error('Erro ao editar etapa:', error);
-      res.status(500).json({ message: 'Erro ao editar etapa.' });
-    }
-  },
-);
-
-// Excluir projeto (as etapas vão junto, pelo ON DELETE CASCADE)
+// Excluir projeto (ADMIN ou LIDER do setor; as etapas vão junto pelo ON DELETE CASCADE)
 router.delete('/projects/:id', requirePermission('projects:manage'), async (req, res) => {
   const id = projectIdSchema.safeParse(req.params.id);
   if (!id.success) {

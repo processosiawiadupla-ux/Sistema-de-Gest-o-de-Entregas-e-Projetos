@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { KeyRound, Mail } from 'lucide-react';
 import type { TeamMember, UserRole } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { useSectors } from '../sectors/useSectors';
-import { useUpdateMember, useSendPasswordReset, useInviteMember } from './useTeam';
+import { useTeam, useUpdateMember, useSendPasswordReset, useInviteMember } from './useTeam';
 
 const CONFIRM_WORD = 'DESATIVAR';
 const EMAIL_DOMAIN = 'wiadupla.com';
@@ -18,9 +18,32 @@ const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   { value: 'ADMIN', label: 'Administrador' },
 ];
 
+// Esta pessoa + todos que estão abaixo dela no organograma.
+// Ninguém desse grupo pode ser escolhido como chefe dela (criaria um ciclo).
+function selfAndBelow(team: TeamMember[], personId: string) {
+  const children = new Map<string, string[]>();
+  for (const m of team) {
+    if (m.managerId) children.set(m.managerId, [...(children.get(m.managerId) ?? []), m.id]);
+  }
+
+  const blocked = new Set([personId]);
+  const stack = [personId];
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    for (const child of children.get(current) ?? []) {
+      if (!blocked.has(child)) {
+        blocked.add(child);
+        stack.push(child);
+      }
+    }
+  }
+  return blocked;
+}
+
 export const EditMemberModal: React.FC<{ member: TeamMember; onClose: () => void }> = ({ member, onClose }) => {
   const { user } = useAuth();
   const { data: sectors = [] } = useSectors();
+  const { data: team = [] } = useTeam();
   const update = useUpdateMember();
   const sendReset = useSendPasswordReset();
   const resendInvite = useInviteMember();
@@ -32,9 +55,18 @@ export const EditMemberModal: React.FC<{ member: TeamMember; onClose: () => void
   const [email, setEmail] = useState(member.email);
   const [role, setRole] = useState<UserRole>(member.role);
   const [sectorId, setSectorId] = useState(member.sectorId ?? '');
+  const [managerId, setManagerId] = useState(member.managerId ?? '');
   const [active, setActive] = useState(member.status !== 'INATIVO');
   const [confirmText, setConfirmText] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
+
+  // Quem pode ser o chefe: ativos ou pendentes, fora a própria pessoa e quem está abaixo dela
+  const managerOptions = useMemo(() => {
+    const blocked = selfAndBelow(team, member.id);
+    return team
+      .filter((m) => !blocked.has(m.id) && (m.status !== 'INATIVO' || m.id === member.managerId))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [team, member.id, member.managerId]);
 
   const needsSector = role !== 'ADMIN';
   const deactivating = member.status !== 'INATIVO' && !active;
@@ -58,6 +90,7 @@ export const EditMemberModal: React.FC<{ member: TeamMember; onClose: () => void
           email: normalizedEmail,
           role,
           sectorId: needsSector ? sectorId : null,
+          managerId: managerId || null,
           status: isPending && active ? undefined : active ? 'ATIVO' : 'INATIVO',
         },
       },
@@ -67,13 +100,13 @@ export const EditMemberModal: React.FC<{ member: TeamMember; onClose: () => void
           if (isPending && emailChanged && updated.status === 'PENDENTE') {
             resendInvite.mutate(
               { name: updated.name, email: updated.email, role: updated.role, sectorId: updated.sectorId },
-              { onSuccess: onClose }
+              { onSuccess: onClose },
             );
             return;
           }
           onClose();
         },
-      }
+      },
     );
   };
 
@@ -86,7 +119,7 @@ export const EditMemberModal: React.FC<{ member: TeamMember; onClose: () => void
     setNotice(null);
     resendInvite.mutate(
       { name: member.name, email: member.email, role: member.role, sectorId: member.sectorId },
-      { onSuccess: setNotice }
+      { onSuccess: setNotice },
     );
   };
 
@@ -164,6 +197,24 @@ export const EditMemberModal: React.FC<{ member: TeamMember; onClose: () => void
                 ))}
               </select>
             </div>
+          </div>
+
+          {/* Gestor direto: monta o organograma */}
+          <div>
+            <label className={labelClass}>Responde a</label>
+            <select value={managerId} onChange={(e) => setManagerId(e.target.value)} className={inputClass}>
+              <option value="">Ninguém (topo do organograma)</option>
+              {managerOptions.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                  {m.sectorName ? ` · ${m.sectorName}` : ''}
+                  {m.status === 'INATIVO' ? ' (inativo)' : ''}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs mt-1 text-slate-500">
+              O chefe imediato. Quem está abaixo desta pessoa não aparece na lista, para evitar ciclos.
+            </p>
           </div>
 
           {/* Acesso ao sistema */}

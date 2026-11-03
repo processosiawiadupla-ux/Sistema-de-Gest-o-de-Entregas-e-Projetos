@@ -1,27 +1,27 @@
-import type { UserRole } from '../types'
+import type { UserRole } from '../types';
 
-// Espelho da matriz do backend (server/src/auth/permissions.ts).
-// Aqui ela só esconde menus e botões; quem protege os dados é o backend.
+// Espelho das permissões do backend: serve só para mostrar ou esconder botões.
+// Quem decide de verdade é o backend (server/src/auth/permissions.ts).
 const PERMISSIONS = {
+  'deliveries:view_team': ['ADMIN', 'LIDER'],
   'deliveries:assign': ['ADMIN', 'LIDER'],
-  'projects:view': ['ADMIN', 'LIDER'],
+  'projects:view': ['ADMIN', 'LIDER', 'COLABORADOR'],
   'projects:manage': ['ADMIN', 'LIDER'],
   'team:view': ['ADMIN', 'LIDER'],
-  'team:invite': ['ADMIN', 'LIDER'], 
+  'team:invite': ['ADMIN', 'LIDER'],
   'admin:access': ['ADMIN'],
-  'deliveries:view_team': ['ADMIN', 'LIDER'],
   'settings:access': ['ADMIN'],
-} as const satisfies Record<string, readonly UserRole[]>
+} as const satisfies Record<string, readonly UserRole[]>;
 
-export type Permission = keyof typeof PERMISSIONS
+export type Permission = keyof typeof PERMISSIONS;
 
-// O papel tem esta permissão? (sem usuário, nega)
-export function can(role: UserRole | null | undefined, permission: Permission): boolean {
-  if (!role) return false
-  return (PERMISSIONS[permission] as readonly UserRole[]).includes(role)
+// O papel tem esta permissão?
+export function can(role: UserRole | undefined | null, permission: Permission): boolean {
+  if (!role) return false;
+  return (PERMISSIONS[permission] as readonly UserRole[]).includes(role);
 }
 
-// Mantida para os arquivos que já usam
-export function canAssignDeliveries(role?: UserRole | null): boolean {
-  return can(role, 'deliveries:assign')
+// Atalho usado pelo botão "Atribuir"
+export function canAssignDeliveries(role: UserRole | undefined | null): boolean {
+  return can(role, 'deliveries:assign');
 }

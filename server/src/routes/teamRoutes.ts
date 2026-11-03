@@ -23,6 +23,8 @@ const inviteSchema = z.object({
     }),
   role: z.enum(['ADMIN', 'LIDER', 'COLABORADOR'], 'Papel inválido.'),
   sector_id: z.uuid('Selecione um setor.').nullish(),
+  // Gestor direto ("Responde a"): null = ninguém | não enviado = não mexe
+  manager_id: z.uuid('Gestor inválido.').nullish(),
 });
 
 // Membros da equipe (ADMIN: todos; LIDER: só quem ele convidou)
@@ -39,13 +41,14 @@ router.get('/team', requirePermission('team:view'), async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT u.id, u.name, u.email, u.role, u.status, u.sector_id, s.name AS sector_name,
-              inv.name AS invited_by_name, u.created_at
+              inv.name AS invited_by_name, u.created_at, u.manager_id, mgr.name AS manager_name
        FROM users u
        LEFT JOIN sectors s ON s.id = u.sector_id
        LEFT JOIN users inv ON inv.id = u.invited_by_id
+       LEFT JOIN users mgr ON mgr.id = u.manager_id
        ${where}
        ORDER BY (u.status = 'INATIVO'), u.name;`,
-      params
+      params,
     );
     res.json(result.rows);
   } catch (error) {
@@ -54,7 +57,7 @@ router.get('/team', requirePermission('team:view'), async (req, res) => {
   }
 });
 
-// Convidar um novo membro (ADMIN: qualquer papel e setor; LIDER: só COLABORADOR do seu setor)
+// Convidar um novo membro (ADMIN: qualquer papel, setor e gestor; LIDER: só COLABORADOR do seu setor)
 router.post('/team/invites', requirePermission('team:invite'), async (req, res) => {
   const user = req.user!;
   const parsed = inviteSchema.safeParse(req.body);
@@ -80,6 +83,10 @@ router.post('/team/invites', requirePermission('team:invite'), async (req, res) 
     return;
   }
 
+  // Gestor direto: o LIDER é sempre o chefe de quem ele convida; o ADMIN escolhe
+  const managerProvided = user.role === 'LIDER' || parsed.data.manager_id !== undefined;
+  const managerId = user.role === 'LIDER' ? user.id : parsed.data.manager_id ?? null;
+
   const client = await pool.connect();
   let token: string;
   let sectorName: string | null = null;
@@ -97,9 +104,21 @@ router.post('/team/invites', requirePermission('team:invite'), async (req, res) 
       sectorName = sector.rows[0].name;
     }
 
+    // O gestor precisa existir e não estar desativado
+    if (managerId) {
+      const manager = await client.query<{ status: string }>('SELECT status FROM users WHERE id = $1;', [
+        managerId,
+      ]);
+      if (!manager.rows[0] || manager.rows[0].status === 'INATIVO') {
+        await client.query('ROLLBACK');
+        res.status(400).json({ message: 'Escolha um gestor ativo.' });
+        return;
+      }
+    }
+
     const existing = await client.query<{ id: string; status: string; invited_by_id: string | null }>(
       'SELECT id, status, invited_by_id FROM users WHERE email = $1 FOR UPDATE;',
-      [email]
+      [email],
     );
 
     let userId: string;
@@ -118,23 +137,31 @@ router.post('/team/invites', requirePermission('team:invite'), async (req, res) 
         res.status(409).json({ message: 'Já existe um convite pendente para esse e-mail.' });
         return;
       }
+      if (managerId === found.id) {
+        await client.query('ROLLBACK');
+        res.status(400).json({ message: 'Uma pessoa não pode responder a ela mesma.' });
+        return;
+      }
 
-      // Reenvio: atualiza os dados (quem convidou continua o mesmo)
+      // Reenvio: atualiza os dados (quem convidou continua o mesmo).
+      // O gestor só muda se tiver sido enviado.
       userId = found.id;
-      await client.query('UPDATE users SET name = $1, role = $2, sector_id = $3 WHERE id = $4;', [
-        name,
-        role,
-        sectorId,
-        userId,
-      ]);
+      await client.query(
+        `UPDATE users
+         SET name = $1, role = $2, sector_id = $3,
+             manager_id = CASE WHEN $5 THEN $6::uuid ELSE manager_id END
+         WHERE id = $4;`,
+        [name, role, sectorId, userId, managerProvided, managerId],
+      );
     } else {
-      // Senha impossível de usar até a pessoa criar a sua
+      // Senha impossível de usar até a pessoa criar a sua.
+      // invited_by_id = quem convidou (histórico) | manager_id = a quem a pessoa responde
       const unusableHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 12);
       const created = await client.query<{ id: string }>(
-        `INSERT INTO users (name, email, password_hash, role, status, sector_id, invited_by_id)
-         VALUES ($1, $2, $3, $4, 'PENDENTE', $5, $6)
+        `INSERT INTO users (name, email, password_hash, role, status, sector_id, invited_by_id, manager_id)
+         VALUES ($1, $2, $3, $4, 'PENDENTE', $5, $6, $7)
          RETURNING id;`,
-        [name, email, unusableHash, role, sectorId, user.id]
+        [name, email, unusableHash, role, sectorId, user.id, managerId],
       );
       userId = created.rows[0].id;
     }
@@ -159,7 +186,7 @@ router.post('/team/invites', requirePermission('team:invite'), async (req, res) 
         inviterName: user.name,
         sectorName,
         link: `${env.APP_URL}/criar-senha?token=${token}`,
-      })
+      }),
     );
     res.status(201).json({ message: `Convite enviado para ${email}.` });
   } catch (error) {

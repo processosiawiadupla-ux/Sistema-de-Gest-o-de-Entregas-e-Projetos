@@ -5,6 +5,7 @@ import { useProjects, useDeleteProject } from './useProjects';
 import { ProjectFormModal } from './ProjectFormModal';
 import { ProjectBoard } from './ProjectBoard';
 import { formatDate } from '../../lib/format';
+import { useAuth } from '../../context/AuthContext';
 
 const getStatusBadge = (st: ProjectStatus) => {
   switch (st) {
@@ -24,7 +25,8 @@ const getStatusBadge = (st: ProjectStatus) => {
 export const ProjetosPage: React.FC = () => {
   const { data: projects = [], isLoading, isError, error, refetch } = useProjects();
   const deleteProject = useDeleteProject();
-
+  const { user } = useAuth();
+  const canCreate = user?.role === 'ADMIN' || user?.role === 'LIDER';
   // Projeto aberto no quadro Kanban (null = mostra a lista)
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // Formulário: null = fechado | { project: null } = criar | { project } = editar
@@ -73,13 +75,15 @@ export const ProjetosPage: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={() => setForm({ project: null })}
-          className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-medium text-sm px-4 py-2.5 rounded-xl shadow-lg shadow-blue-600/20 transition-all cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Novo Projeto</span>
-        </button>
+        {canCreate && (
+          <button
+            onClick={() => setForm({ project: null })}
+            className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-medium text-sm px-4 py-2.5 rounded-xl shadow-lg shadow-blue-600/20 transition-all cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Novo Projeto</span>
+          </button>
+        )}
       </div>
 
       {isLoading && <p className="text-sm text-slate-500">Carregando projetos...</p>}

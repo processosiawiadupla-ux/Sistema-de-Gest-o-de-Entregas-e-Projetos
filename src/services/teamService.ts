@@ -11,6 +11,8 @@ interface MemberDTO {
   sector_id: string | null
   sector_name: string | null
   invited_by_name?: string | null
+  manager_id?: string | null
+  manager_name?: string | null
   created_at: string
 }
 
@@ -25,6 +27,8 @@ function toMember(dto: MemberDTO): TeamMember {
     sectorId: dto.sector_id,
     sectorName: dto.sector_name,
     invitedByName: dto.invited_by_name ?? null,
+    managerId: dto.manager_id ?? null,
+    managerName: dto.manager_name ?? null,
     createdAt: dto.created_at,
   }
 }
@@ -35,6 +39,8 @@ export interface InviteInput {
   email: string
   role: UserRole
   sectorId?: string | null
+  // Gestor direto: null = ninguém | não enviado (undefined) = mantém o atual
+  managerId?: string | null
 }
 
 // O que o ADMIN envia ao editar um membro
@@ -43,6 +49,7 @@ export interface MemberUpdateInput {
   email: string
   role: UserRole
   sectorId: string | null
+  managerId: string | null // null = ninguém (topo do organograma)
   status?: 'ATIVO' | 'INATIVO'
 }
 
@@ -60,17 +67,20 @@ export const teamService = {
       email: input.email,
       role: input.role,
       sector_id: input.sectorId || null,
+      // Só manda o gestor quando a tela informou; assim o reenvio não apaga o atual
+      ...(input.managerId !== undefined && { manager_id: input.managerId }),
     })
     return response.data.message
   },
 
-  // Editar nome, papel, setor e acesso (só ADMIN)
-   async update(id: string, input: MemberUpdateInput): Promise<TeamMember> {
+  // Editar nome, papel, setor, gestor e acesso (só ADMIN)
+  async update(id: string, input: MemberUpdateInput): Promise<TeamMember> {
     const response = await api.patch<MemberDTO>(`/admin/users/${id}`, {
       name: input.name,
       email: input.email,
       role: input.role,
       sector_id: input.sectorId || null,
+      manager_id: input.managerId,
       status: input.status,
     })
     return toMember(response.data)

@@ -139,5 +139,8 @@ export interface TeamMember {
   sectorId: string | null;
   sectorName: string | null;
   invitedByName: string | null;
+  managerId: string | null;   // gestor direto ("Responde a")
+  managerName: string | null;
   createdAt: string;
 }
+

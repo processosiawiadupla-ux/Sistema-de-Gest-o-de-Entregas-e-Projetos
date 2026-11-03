@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import type { PoolClient } from 'pg';
 import { pool } from '../config/database.js';
 import { env } from '../config/env.js';
 import { createUserToken } from '../auth/userTokens.js';
@@ -24,15 +25,34 @@ const updateUserSchema = z.object({
   role: z.enum(['ADMIN', 'LIDER', 'COLABORADOR'], 'Papel inválido.'),
   sector_id: z.uuid('Setor inválido.').nullish(),
   status: z.enum(['ATIVO', 'INATIVO'], 'Status inválido.').optional(),
+  // Gestor direto: null = ninguém (topo) | não enviado = mantém o atual
+  manager_id: z.uuid('Gestor inválido.').nullable().optional(),
 });
 
 const SELECT_USER = `
   SELECT u.id, u.name, u.email, u.role, u.status, u.sector_id,
-         s.name AS sector_name, inv.name AS invited_by_name, u.created_at
+         s.name AS sector_name, inv.name AS invited_by_name,
+         u.manager_id, mgr.name AS manager_name, u.created_at
   FROM users u
   LEFT JOIN sectors s ON s.id = u.sector_id
   LEFT JOIN users inv ON inv.id = u.invited_by_id
+  LEFT JOIN users mgr ON mgr.id = u.manager_id
 `;
+
+// O gestor escolhido está ABAIXO desta pessoa no organograma?
+// Se estiver, salvar criaria um ciclo (A chefe de B e B chefe de A).
+async function isBelow(client: PoolClient, personId: string, candidateId: string) {
+  const result = await client.query(
+    `WITH RECURSIVE subordinados AS (
+       SELECT id FROM users WHERE manager_id = $1
+       UNION
+       SELECT u.id FROM users u JOIN subordinados s ON u.manager_id = s.id
+     )
+     SELECT 1 FROM subordinados WHERE id = $2;`,
+    [personId, candidateId],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
 
 // Listar usuários
 router.get('/users', async (_req, res) => {
@@ -45,7 +65,7 @@ router.get('/users', async (_req, res) => {
   }
 });
 
-// Editar nome, e-mail, papel, setor e status de um usuário
+// Editar nome, e-mail, papel, setor, status e gestor de um usuário
 router.patch('/users/:id', async (req, res) => {
   const admin = req.user!;
   const id = idSchema.safeParse(req.params.id);
@@ -72,10 +92,13 @@ router.patch('/users/:id', async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    const found = await client.query<{ id: string; role: string; status: string; email: string }>(
-      'SELECT id, role, status, email FROM users WHERE id = $1 FOR UPDATE;',
-      [id.data]
-    );
+    const found = await client.query<{
+      id: string;
+      role: string;
+      status: string;
+      email: string;
+      manager_id: string | null;
+    }>('SELECT id, role, status, email, manager_id FROM users WHERE id = $1 FOR UPDATE;', [id.data]);
     const target = found.rows[0];
     if (!target) {
       await client.query('ROLLBACK');
@@ -100,7 +123,7 @@ router.patch('/users/:id', async (req, res) => {
     if (losesAdmin) {
       const others = await client.query<{ count: string }>(
         `SELECT COUNT(*) FROM users WHERE role = 'ADMIN' AND status = 'ATIVO' AND id <> $1;`,
-        [target.id]
+        [target.id],
       );
       if (Number(others.rows[0].count) === 0) {
         await client.query('ROLLBACK');
@@ -109,9 +132,45 @@ router.patch('/users/:id', async (req, res) => {
       }
     }
 
+    // Trava 3: gestor direto válido e sem ciclo
+    const managerId =
+      parsed.data.manager_id === undefined ? target.manager_id : parsed.data.manager_id;
+
+    if (managerId && managerId !== target.manager_id) {
+      if (managerId === target.id) {
+        await client.query('ROLLBACK');
+        res.status(400).json({ message: 'Uma pessoa não pode responder a ela mesma.' });
+        return;
+      }
+
+      const manager = await client.query<{ status: string }>('SELECT status FROM users WHERE id = $1;', [
+        managerId,
+      ]);
+      if (!manager.rows[0]) {
+        await client.query('ROLLBACK');
+        res.status(400).json({ message: 'O gestor escolhido não existe.' });
+        return;
+      }
+      if (manager.rows[0].status === 'INATIVO') {
+        await client.query('ROLLBACK');
+        res.status(400).json({ message: 'O gestor escolhido está desativado.' });
+        return;
+      }
+
+      if (await isBelow(client, target.id, managerId)) {
+        await client.query('ROLLBACK');
+        res.status(400).json({
+          message: 'O gestor escolhido já está abaixo desta pessoa no organograma. Isso criaria um ciclo.',
+        });
+        return;
+      }
+    }
+
     await client.query(
-      'UPDATE users SET name = $1, email = $2, role = $3, sector_id = $4, status = $5 WHERE id = $6;',
-      [name, email, role, sectorId, newStatus, target.id]
+      `UPDATE users
+       SET name = $1, email = $2, role = $3, sector_id = $4, status = $5, manager_id = $6
+       WHERE id = $7;`,
+      [name, email, role, sectorId, newStatus, managerId, target.id],
     );
 
     // E-mail trocado ou usuário desativado: links pendentes deixam de valer
@@ -132,7 +191,7 @@ router.patch('/users/:id', async (req, res) => {
       return;
     }
     if (code === '23503') {
-      res.status(400).json({ message: 'O setor informado não existe.' });
+      res.status(400).json({ message: 'O setor ou o gestor informado não existe.' });
       return;
     }
     console.error('Erro ao editar usuário:', error);
@@ -158,7 +217,7 @@ router.post('/users/:id/reset-password', async (req, res) => {
   try {
     const found = await client.query<{ name: string; email: string; status: string }>(
       'SELECT name, email, status FROM users WHERE id = $1;',
-      [id.data]
+      [id.data],
     );
     if (!found.rows[0]) {
       res.status(404).json({ message: 'Usuário não encontrado.' });
@@ -183,7 +242,9 @@ router.post('/users/:id/reset-password', async (req, res) => {
   }
 
   try {
-    await sendMail(resetEmail({ name: target.name, email: target.email, link: `${env.APP_URL}/criar-senha?token=${token}` }));
+    await sendMail(
+      resetEmail({ name: target.name, email: target.email, link: `${env.APP_URL}/criar-senha?token=${token}` }),
+    );
     res.json({ message: `Link de redefinição enviado para ${target.email}.` });
   } catch (error) {
     console.error('Erro ao enviar e-mail de redefinição:', error);

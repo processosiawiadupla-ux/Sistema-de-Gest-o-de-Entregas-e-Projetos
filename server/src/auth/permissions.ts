@@ -6,7 +6,9 @@ const PERMISSIONS = {
   'deliveries:assign': ['ADMIN', 'LIDER'],
   'deliveries:edit': ['ADMIN', 'LIDER'],
   'deliveries:delete': ['ADMIN', 'LIDER'],
-  'projects:view': ['ADMIN', 'LIDER'],
+  // Todos veem Projetos; o backend filtra quais projetos cada um enxerga
+  'projects:view': ['ADMIN', 'LIDER', 'COLABORADOR'],
+  // Criar, editar e excluir projetos: só ADMIN e LIDER
   'projects:manage': ['ADMIN', 'LIDER'],
   'team:view': ['ADMIN', 'LIDER'],
   'team:invite': ['ADMIN', 'LIDER'],

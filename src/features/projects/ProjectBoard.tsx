@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { ArrowLeft, Calendar, ChevronLeft, ChevronRight, Pencil, User } from 'lucide-react';
 import type { Project, ProjectStage, ProjectStageStatus } from '../../types';
 import { useMoveStage, useUpdateStage, useProjectAssignees } from './useProjects';
+import { canManageBoard, canMoveStage } from './projectAccess';
 import { formatDate } from '../../lib/format';
+import { useAuth } from '../../context/AuthContext';
 
 const COLUMNS: { status: ProjectStageStatus; title: string; dot: string }[] = [
   { status: 'todo', title: 'A fazer', dot: 'bg-slate-400' },
@@ -44,11 +46,15 @@ function stageBadge(stage: ProjectStage) {
 interface Props {
   project: Project;
   onBack: () => void;
-  onEdit: () => void;
+  onEdit?: () => void; // sem onEdit = a pessoa não pode editar o projeto
 }
 
 export const ProjectBoard: React.FC<Props> = ({ project, onBack, onEdit }) => {
   const moveStage = useMoveStage();
+  const { user } = useAuth();
+  // Líder do quadro: ADMIN, LIDER do setor ou responsável principal
+  const isBoardLeader = canManageBoard(user, project);
+
   const [overColumn, setOverColumn] = useState<ProjectStageStatus | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [editingStage, setEditingStage] = useState<ProjectStage | null>(null);
@@ -56,7 +62,7 @@ export const ProjectBoard: React.FC<Props> = ({ project, onBack, onEdit }) => {
   const doneCount = project.stages.filter((s) => s.status === 'done').length;
 
   const move = (stage: ProjectStage, status: ProjectStageStatus) => {
-    if (stage.status === status) return;
+    if (stage.status === status || !canMoveStage(user, project, stage)) return;
     moveStage.mutate({ projectId: project.id, stageId: stage.id, status });
   };
 
@@ -88,14 +94,22 @@ export const ProjectBoard: React.FC<Props> = ({ project, onBack, onEdit }) => {
               </span>
               <h1 className="text-2xl font-bold text-slate-900 mt-2">{project.name}</h1>
               {project.description && <p className="text-sm text-slate-500 mt-1">{project.description}</p>}
+              {project.owner && (
+                <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">
+                  <User className="w-3.5 h-3.5 text-slate-400" />
+                  Responsável principal: <span className="font-medium text-slate-700">{project.owner}</span>
+                </p>
+              )}
             </div>
-            <button
-              onClick={onEdit}
-              className="self-start inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
-            >
-              <Pencil className="w-3.5 h-3.5" />
-              Editar projeto
-            </button>
+            {onEdit && (
+              <button
+                onClick={onEdit}
+                className="self-start inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                Editar projeto
+              </button>
+            )}
           </div>
 
           <div>
@@ -114,6 +128,12 @@ export const ProjectBoard: React.FC<Props> = ({ project, onBack, onEdit }) => {
           </div>
         </div>
       </div>
+
+      {!isBoardLeader && (
+        <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5">
+          Você pode mover as etapas pelas quais é responsável. As demais ficam com o líder do projeto.
+        </p>
+      )}
 
       {moveStage.isError && (
         <p className="text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-2.5">
@@ -156,18 +176,22 @@ export const ProjectBoard: React.FC<Props> = ({ project, onBack, onEdit }) => {
                     const badge = stageBadge(stage);
                     const prev = COLUMNS[columnIndex - 1];
                     const next = COLUMNS[columnIndex + 1];
+                    const movable = canMoveStage(user, project, stage);
+                    const isMine = stage.responsibleId === user?.id;
 
                     return (
                       <article
                         key={stage.id}
-                        draggable
+                        draggable={movable}
                         onDragStart={(e) => {
                           e.dataTransfer.setData('text/plain', stage.id);
                           setDraggingId(stage.id);
                         }}
                         onDragEnd={() => setDraggingId(null)}
-                        onClick={() => setEditingStage(stage)}
-                        className={`bg-white border border-slate-200 rounded-xl p-3 shadow-sm space-y-2 cursor-grab active:cursor-grabbing hover:border-slate-300 ${
+                        onClick={() => isBoardLeader && setEditingStage(stage)}
+                        className={`bg-white border rounded-xl p-3 shadow-sm space-y-2 ${
+                          isMine ? 'border-blue-300 ring-1 ring-blue-100' : 'border-slate-200'
+                        } ${movable ? 'cursor-grab active:cursor-grabbing hover:border-slate-300' : 'cursor-default'} ${
                           draggingId === stage.id ? 'opacity-40' : ''
                         }`}
                       >
@@ -186,7 +210,7 @@ export const ProjectBoard: React.FC<Props> = ({ project, onBack, onEdit }) => {
                         <div className="flex items-center justify-between gap-2 text-xs text-slate-500">
                           <span className="flex items-center gap-1 truncate">
                             <User className="w-3.5 h-3.5 text-slate-400" />
-                            {stage.responsibleName}
+                            {isMine ? 'Você' : stage.responsibleName}
                           </span>
                           <span className="flex items-center gap-1 shrink-0">
                             <Calendar className="w-3.5 h-3.5 text-slate-400" />
@@ -195,36 +219,38 @@ export const ProjectBoard: React.FC<Props> = ({ project, onBack, onEdit }) => {
                         </div>
 
                         {/* Botões para mover (funcionam também no celular) */}
-                        <div className="flex justify-between pt-1">
-                          {prev ? (
-                            <button
-                              type="button"
-                              title={`Mover para ${prev.title}`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                move(stage, prev.status);
-                              }}
-                              className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
-                            >
-                              <ChevronLeft className="w-4 h-4" />
-                            </button>
-                          ) : (
-                            <span />
-                          )}
-                          {next && (
-                            <button
-                              type="button"
-                              title={`Mover para ${next.title}`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                move(stage, next.status);
-                              }}
-                              className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
-                            >
-                              <ChevronRight className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
+                        {movable && (
+                          <div className="flex justify-between pt-1">
+                            {prev ? (
+                              <button
+                                type="button"
+                                title={`Mover para ${prev.title}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  move(stage, prev.status);
+                                }}
+                                className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                              >
+                                <ChevronLeft className="w-4 h-4" />
+                              </button>
+                            ) : (
+                              <span />
+                            )}
+                            {next && (
+                              <button
+                                type="button"
+                                title={`Mover para ${next.title}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  move(stage, next.status);
+                                }}
+                                className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                              >
+                                <ChevronRight className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </article>
                     );
                   })}
@@ -246,7 +272,7 @@ export const ProjectBoard: React.FC<Props> = ({ project, onBack, onEdit }) => {
   );
 };
 
-// ---------- Modal para editar uma etapa ----------
+// ---------- Modal para editar uma etapa (só o líder do quadro abre) ----------
 
 interface StageEditProps {
   project: Project;
@@ -262,12 +288,12 @@ const StageEditModal: React.FC<StageEditProps> = ({ project, stage, onClose }) =
   const [dueDate, setDueDate] = useState(stage.dueDate);
   const [responsibleId, setResponsibleId] = useState(stage.responsibleId);
 
-  // Garante que o responsável atual aparece na lista, mesmo que não esteja nela
-    // Só pessoas do setor do projeto ("Geral" = todas)
+  // Só pessoas do setor do projeto ("Geral" = todas)
   const sectorPeople = project.sectorId
     ? assignees.filter((a) => a.sectorId === project.sectorId)
     : assignees;
 
+  // Garante que o responsável atual aparece na lista, mesmo que não esteja nela
   const options = sectorPeople.some((a) => a.id === stage.responsibleId)
     ? sectorPeople
     : [
