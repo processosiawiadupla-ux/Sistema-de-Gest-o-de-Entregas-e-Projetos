@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS users (
   sector_id UUID REFERENCES sectors(id),
   avatar_url TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  invited_by_id UUID REFERENCES users(id),
   CONSTRAINT users_sector_required CHECK (role = 'ADMIN' OR sector_id IS NOT NULL)
 );
 

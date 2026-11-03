@@ -113,3 +113,15 @@ export interface Sector {
   id: string;
   name: string;
 }
+// 10. Membro da equipe (usuário real do banco)
+export interface TeamMember {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  status: UserStatus;
+  sectorId: string | null;
+  sectorName: string | null;
+  invitedByName: string | null;
+  createdAt: string;
+}

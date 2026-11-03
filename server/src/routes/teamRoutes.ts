@@ -25,6 +25,35 @@ const inviteSchema = z.object({
   sector_id: z.uuid('Selecione um setor.').nullish(),
 });
 
+// Membros da equipe (ADMIN: todos; LIDER: só quem ele convidou)
+router.get('/team', requirePermission('team:view'), async (req, res) => {
+  const user = req.user!;
+  const params: string[] = [];
+  let where = '';
+
+  if (user.role !== 'ADMIN') {
+    where = 'WHERE u.invited_by_id = $1';
+    params.push(user.id);
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT u.id, u.name, u.email, u.role, u.status, u.sector_id, s.name AS sector_name,
+              inv.name AS invited_by_name, u.created_at
+       FROM users u
+       LEFT JOIN sectors s ON s.id = u.sector_id
+       LEFT JOIN users inv ON inv.id = u.invited_by_id
+       ${where}
+       ORDER BY (u.status = 'INATIVO'), u.name;`,
+      params
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Erro ao listar equipe:', error);
+    res.status(500).json({ message: 'Erro ao listar a equipe.' });
+  }
+});
+
 // Convidar um novo membro (ADMIN: qualquer papel e setor; LIDER: só COLABORADOR do seu setor)
 router.post('/team/invites', requirePermission('team:invite'), async (req, res) => {
   const user = req.user!;
@@ -68,21 +97,30 @@ router.post('/team/invites', requirePermission('team:invite'), async (req, res) 
       sectorName = sector.rows[0].name;
     }
 
-    const existing = await client.query<{ id: string; status: string }>(
-      'SELECT id, status FROM users WHERE email = $1 FOR UPDATE;',
+    const existing = await client.query<{ id: string; status: string; invited_by_id: string | null }>(
+      'SELECT id, status, invited_by_id FROM users WHERE email = $1 FOR UPDATE;',
       [email]
     );
 
     let userId: string;
 
     if (existing.rows[0]) {
-      // Convite ainda não aceito: atualiza os dados e reenvia
-      if (existing.rows[0].status !== 'PENDENTE') {
+      const found = existing.rows[0];
+
+      if (found.status !== 'PENDENTE') {
         await client.query('ROLLBACK');
         res.status(409).json({ message: 'Já existe um usuário com esse e-mail.' });
         return;
       }
-      userId = existing.rows[0].id;
+      // LIDER só reenvia os convites que ele mesmo fez
+      if (user.role === 'LIDER' && found.invited_by_id !== user.id) {
+        await client.query('ROLLBACK');
+        res.status(409).json({ message: 'Já existe um convite pendente para esse e-mail.' });
+        return;
+      }
+
+      // Reenvio: atualiza os dados (quem convidou continua o mesmo)
+      userId = found.id;
       await client.query('UPDATE users SET name = $1, role = $2, sector_id = $3 WHERE id = $4;', [
         name,
         role,
@@ -93,10 +131,10 @@ router.post('/team/invites', requirePermission('team:invite'), async (req, res) 
       // Senha impossível de usar até a pessoa criar a sua
       const unusableHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 12);
       const created = await client.query<{ id: string }>(
-        `INSERT INTO users (name, email, password_hash, role, status, sector_id)
-         VALUES ($1, $2, $3, $4, 'PENDENTE', $5)
+        `INSERT INTO users (name, email, password_hash, role, status, sector_id, invited_by_id)
+         VALUES ($1, $2, $3, $4, 'PENDENTE', $5, $6)
          RETURNING id;`,
-        [name, email, unusableHash, role, sectorId]
+        [name, email, unusableHash, role, sectorId, user.id]
       );
       userId = created.rows[0].id;
     }

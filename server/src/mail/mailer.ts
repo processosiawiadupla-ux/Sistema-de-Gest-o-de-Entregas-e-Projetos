@@ -8,6 +8,7 @@ const transporter = smtpConfigured
       host: env.SMTP_HOST,
       port: env.SMTP_PORT,
       secure: env.SMTP_PORT === 465, // 465: conexão criptografada desde o início
+      requireTLS: env.SMTP_PORT === 587,
       auth: { user: env.SMTP_USER, pass: env.SMTP_PASS },
     })
   : null;
