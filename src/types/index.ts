@@ -13,42 +13,56 @@ export interface User {
 }
 
 // 2. Status do Projeto (Amigável e legível para a UI)
-export type ProjectStatus = 
-  | 'Não iniciado' 
-  | 'Em andamento' 
-  | 'Aguardando' 
-  | 'Concluído' 
+export type ProjectStatus =
+  | 'Não iniciado'
+  | 'Em andamento'
+  | 'Aguardando'
+  | 'Concluído'
   | 'Cancelado';
 
-// 3. Situação do Prazo / Entrega
+// 3. Situação do Prazo (legado, mantido para não quebrar código antigo)
 export type ScheduleStatus = 'ENTREGUE' | 'PROXIMO A VENCER' | 'EM ATRASO' | 'COMPLETO';
 
-// 4. Estrutura Completa do Projeto
+// 4. Etapa do projeto = um cartão no quadro Kanban
+//    'todo' = A fazer | 'doing' = Em andamento | 'done' = Concluído
+export type ProjectStageStatus = 'todo' | 'doing' | 'done';
+
+export interface ProjectStage {
+  id: string;
+  position: number;        // ordem em que foi criada (1, 2, 3...)
+  title: string;
+  dueDate: string;         // AAAA-MM-DD
+  responsibleId: string;
+  responsibleName: string;
+  status: ProjectStageStatus;
+  completedAt: string | null;
+}
+
+// 5. Estrutura Completa do Projeto
 export interface Project {
   id: string;
   name: string;
   description: string;
   ownerId?: string;        // ID do responsável
-  owner: string;          // Nome legível do responsável
-  department: string;
-  sectorId?: string;     // Setor / Área
-  startDate: string;      // Data de início (AAAA-MM-DD)
-  dueDate: string;        // Prazo final
+  owner: string;           // Nome legível do responsável
+  department: string;      // Nome do setor ('' = Geral)
+  sectorId: string | null; // Setor / Área
+  startDate: string;       // Data de início (AAAA-MM-DD)
+  dueDate: string;         // Prazo final
   status: ProjectStatus;
   scheduleStatus?: ScheduleStatus;
-  notes?: string;         // Observações gerais
+  notes: string;           // Observações gerais
+  stages: ProjectStage[];  // Etapas, na ordem de criação
+  progress: number;        // 0 a 100, conta só as etapas concluídas
   createdAt?: string;
 }
 
-// 5. Etapas e Marcos Importantes do Projeto
-export interface ProjectStage {
+// 5.1 Pessoa que pode ser responsável de uma etapa de projeto
+export interface ProjectAssignee {
   id: string;
-  projectId: string;
-  title: string;
-  dueDate: string;
-  status: ScheduleStatus;
-  completed: boolean;
-  assignedToId?: string;
+  name: string;
+  sectorName: string | null;
+  sectorId: string | null;
 }
 
 // 6. Situação da entrega (calculada a partir do prazo e da conclusão, nunca guardada)
@@ -108,11 +122,13 @@ export interface Assignee {
   role: UserRole;
   sectorId: string | null;
 }
+
 // 9. Setores da empresa
 export interface Sector {
   id: string;
   name: string;
 }
+
 // 10. Membro da equipe (usuário real do banco)
 export interface TeamMember {
   id: string;

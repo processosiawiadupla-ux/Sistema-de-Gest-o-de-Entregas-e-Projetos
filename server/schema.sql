@@ -62,8 +62,25 @@ CREATE TABLE IF NOT EXISTS deliveries (
   assigned_by_name VARCHAR(255),
   sector_id UUID NOT NULL REFERENCES sectors(id),
   due_date DATE NOT NULL,
-   completed BOOLEAN DEFAULT FALSE,
+  completed BOOLEAN DEFAULT FALSE,
   completed_at TIMESTAMP,
   comments_count INT DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS project_stages (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id     UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  position       SMALLINT NOT NULL CHECK (position BETWEEN 1 AND 10),
+  title          VARCHAR(255) NOT NULL,
+  due_date       DATE NOT NULL,
+  responsible_id UUID NOT NULL REFERENCES users(id),
+  status         VARCHAR(20) NOT NULL DEFAULT 'todo'
+                 CHECK (status IN ('todo', 'doing', 'done')),
+  completed_at   TIMESTAMPTZ,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (project_id, position)
+);
+
+CREATE INDEX IF NOT EXISTS idx_project_stages_responsible
+  ON project_stages (responsible_id);
