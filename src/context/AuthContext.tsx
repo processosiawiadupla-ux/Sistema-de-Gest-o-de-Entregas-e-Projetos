@@ -10,6 +10,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   setPassword: (token: string, password: string) => Promise<void>; // criar senha pelo link do e-mail
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -59,8 +60,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(loggedUser);
   };
 
+  const refreshUser = async () => {
+    const currentUser = await authService.me();
+    setUser(currentUser);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout, setPassword }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, setPassword, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
@@ -73,3 +79,4 @@ export const useAuth = () => {
   }
   return context;
 };
+

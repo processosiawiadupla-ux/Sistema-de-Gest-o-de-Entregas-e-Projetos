@@ -11,7 +11,8 @@ import deliveryRoutes from './routes/deliveryRoutes.js';
 import sectorRoutes from './routes/sectorRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import teamRoutes from './routes/teamRoutes.js';
-
+import meRoutes from './routes/meRoutes.js';
+import passwordResetRoutes from './routes/passwordResetRoutes.js';
 const app = express();
 
 // Em produção o Nginx fica na frente: confia no IP que ele informa
@@ -23,9 +24,11 @@ app.use(cookieParser());
 
 // 1. Rotas públicas: login, sair, conferir link e criar senha
 app.use('/api', authRoutes);
+app.use('/api', passwordResetRoutes);
 
 // 2. Daqui para baixo, tudo exige login
 app.use('/api', authenticate);
+app.use('/api', meRoutes);
 
 // 3. Painel de admin: só ADMIN, barrado já na entrada
 app.use('/api/admin', requirePermission('admin:access'), adminRoutes);

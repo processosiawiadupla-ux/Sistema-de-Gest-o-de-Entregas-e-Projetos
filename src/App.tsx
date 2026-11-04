@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthPage } from './features/auth/AuthPage';
 import { SetPasswordPage } from './features/auth/SetPasswordPage';
+import { ForgotPasswordPage } from './features/auth/ForgotPasswordPage';
 import { Sidebar } from './components/Layout/Sidebar';
 import { DashboardPage } from './features/dashboard/DashboardPage';
 import { EquipePage } from './features/team/EquipePage';
@@ -21,23 +22,27 @@ const MainLayout: React.FC = () => {
   const { user, isLoading } = useAuth();
   const [currentTab, setCurrentTab] = useState('dashboard');
   const [deliveryModal, setDeliveryModal] = useState<DeliveryModal>(null);
-  // Endereço atual: /criar-senha abre a tela de criar senha (link do e-mail)
+  // Endereço atual: /criar-senha e /esqueci-senha abrem telas próprias
   const [path, setPath] = useState(window.location.pathname);
 
+  // Volta para o endereço raiz, sem recarregar a página
+  const goHome = () => {
+    window.history.replaceState(null, '', '/');
+    setPath('/');
+  };
+
   // 1. Link do e-mail: tela de criar senha, com ou sem sessão aberta
+  //    (replaceState também tira o token do endereço e do histórico do navegador)
   if (path === '/criar-senha') {
-    return (
-      <SetPasswordPage
-        onDone={() => {
-          // Tira o token do endereço (e do histórico do navegador) e volta ao sistema
-          window.history.replaceState(null, '', '/');
-          setPath('/');
-        }}
-      />
-    );
+    return <SetPasswordPage onDone={goHome} />;
   }
 
-  // 2. Enquanto confere a sessão com o backend, não mostra nada
+  // 2. "Esqueci minha senha": pedir o link de redefinição
+  if (path === '/esqueci-senha') {
+    return <ForgotPasswordPage onBack={goHome} />;
+  }
+
+  // 3. Enquanto confere a sessão com o backend, não mostra nada
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-100 text-sm text-slate-500">
@@ -46,12 +51,12 @@ const MainLayout: React.FC = () => {
     );
   }
 
-  // 3. Sem sessão: mostra a tela de login
+  // 4. Sem sessão: mostra a tela de login
   if (!user) {
     return <AuthPage />;
   }
 
-  // 4. Com sessão: cada tela confere a permissão antes de aparecer
+  // 5. Com sessão: cada tela confere a permissão antes de aparecer
   const canViewTeam = can(user.role, 'deliveries:view_team');
 
   const renderContent = () => {

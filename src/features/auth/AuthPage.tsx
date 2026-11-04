@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Mail, Lock } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { WiaLogo } from '../../components/Wialogo';
 import type { ApiError } from '../../lib/api';
 
 const inputClass =
@@ -33,8 +34,8 @@ export const AuthPage: React.FC = () => {
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 space-y-6">
         {/* Logotipo */}
         <div className="flex flex-col items-center text-center gap-3">
-          <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-white font-bold text-2xl shadow-lg shadow-blue-500/30">
-            W
+          <div className="w-14 h-14 bg-[#0A192F] rounded-2xl flex items-center justify-center shadow-lg shadow-slate-900/30">
+            <WiaLogo className="w-9 text-white" />
           </div>
           <div>
             <h1 className="text-xl font-bold text-slate-900 tracking-wide">WIAFLOW</h1>
@@ -78,6 +79,11 @@ export const AuthPage: React.FC = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 className={inputClass}
               />
+            </div>
+            <div className="flex justify-end mt-1.5">
+              <a href="/esqueci-senha" className="text-xs font-medium text-blue-600 hover:text-blue-500">
+                Esqueci minha senha
+              </a>
             </div>
           </div>
 

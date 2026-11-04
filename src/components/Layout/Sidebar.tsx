@@ -13,6 +13,7 @@ import {
   UserPlus,
   type LucideIcon,
 } from 'lucide-react';
+import { WiaLogo } from '../Wialogo';
 import { useAuth } from '../../context/AuthContext';
 import { can } from '../../lib/permissions';
 
@@ -49,7 +50,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { tab: 'entregas-equipe', label: 'Entregas da equipe', Icon: CalendarDays, visible: can(role, 'deliveries:view_team') },
       ],
     },
-        {
+    {
       title: 'Projetos',
       items: [{ tab: 'projetos', label: 'Projetos', Icon: FolderKanban, visible: can(role, 'projects:view') }],
     },
@@ -67,9 +68,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Topo: marca, ações e menu (rola se a tela for baixa) */}
       <div className="p-6 flex-1 overflow-y-auto">
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-blue-500/30">
-            W
-          </div>
+          <WiaLogo className="w-10 text-white shrink-0" />
           <div>
             <h1 className="text-white font-bold text-lg tracking-wider">WIAFLOW</h1>
             <p className="text-[10px] text-slate-400 uppercase tracking-widest">Gestão de Entregas</p>
@@ -140,7 +139,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <span>Meu perfil</span>
         </button>
 
-         {can(role, 'settings:access') && (
+        {can(role, 'settings:access') && (
           <button
             onClick={() => setCurrentTab('configuracoes')}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
