@@ -39,7 +39,7 @@ export const AuthPage: React.FC = () => {
           </div>
           <div>
             <h1 className="text-xl font-bold text-slate-900 tracking-wide">WIAFLOW</h1>
-            <p className="text-xs text-slate-500 uppercase tracking-widest">Gestão de Entregas</p>
+            <p className="text-xs text-slate-500 uppercase tracking-widest">Gestão de Entregas e Projetos</p>
           </div>
         </div>
 

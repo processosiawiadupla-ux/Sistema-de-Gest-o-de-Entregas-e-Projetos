@@ -71,7 +71,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <WiaLogo className="w-10 text-white shrink-0" />
           <div>
             <h1 className="text-white font-bold text-lg tracking-wider">WIAFLOW</h1>
-            <p className="text-[10px] text-slate-400 uppercase tracking-widest">Gestão de Entregas</p>
+            <p className="text-[10px] text-slate-400 uppercase tracking-widest">Gestão de Entregas e Projetos</p>
           </div>
         </div>
 
