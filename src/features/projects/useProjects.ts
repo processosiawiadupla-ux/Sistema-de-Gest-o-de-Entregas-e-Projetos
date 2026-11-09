@@ -101,3 +101,24 @@ export function useMoveStage() {
     onSettled: () => queryClient.invalidateQueries({ queryKey: projectKeys.all, exact: true }),
   });
 }
+
+// Observações de uma etapa
+export function useStageNotes(projectId: string, stageId: string) {
+  return useQuery({
+    queryKey: ['projects', 'notes', stageId],
+    queryFn: () => projectService.listStageNotes(projectId, stageId),
+  });
+}
+
+export function useAddStageNote() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { projectId: string; stageId: string; text: string }) =>
+      projectService.addStageNote(vars.projectId, vars.stageId, vars.text),
+    onSuccess: (notes, vars) => {
+      // Mostra a lista nova na hora e atualiza o contador do cartão
+      queryClient.setQueryData(['projects', 'notes', vars.stageId], notes);
+      queryClient.invalidateQueries({ queryKey: projectKeys.all, exact: true });
+    },
+  });
+}

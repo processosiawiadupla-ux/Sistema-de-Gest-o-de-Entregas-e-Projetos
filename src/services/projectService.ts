@@ -3,6 +3,7 @@ import type {
   Project,
   ProjectAssignee,
   ProjectStage,
+  ProjectStageNote,
   ProjectStageStatus,
   ProjectStatus,
 } from '../types';
@@ -30,6 +31,7 @@ interface ProjectStageDTO {
   responsible_name: string;
   status: ProjectStageStatus;
   completed_at: string | null;
+  notes_count?: number;
 }
 
 interface ProjectDTO {
@@ -54,6 +56,13 @@ interface AssigneeDTO {
   sector_name: string | null;
 }
 
+interface StageNoteDTO {
+  id: string;
+  text: string;
+  author_name: string;
+  created_at: string;
+}
+
 const toStage = (dto: ProjectStageDTO): ProjectStage => ({
   id: dto.id,
   position: dto.position,
@@ -63,6 +72,14 @@ const toStage = (dto: ProjectStageDTO): ProjectStage => ({
   responsibleName: dto.responsible_name,
   status: dto.status,
   completedAt: dto.completed_at,
+  notesCount: dto.notes_count ?? 0,
+});
+
+const toNote = (dto: StageNoteDTO): ProjectStageNote => ({
+  id: dto.id,
+  text: dto.text,
+  authorName: dto.author_name,
+  createdAt: dto.created_at,
 });
 
 // Progresso = etapas concluídas / total de etapas
@@ -158,7 +175,7 @@ export const projectService = {
 
   async assignees(): Promise<ProjectAssignee[]> {
     const { data } = await api.get<AssigneeDTO[]>('/projects/assignees');
-        return data.map((a) => ({
+    return data.map((a) => ({
       id: a.id,
       name: a.name,
       sectorId: a.sector_id,
@@ -180,4 +197,19 @@ export const projectService = {
     );
     return toProject(data);
   },
+
+  // Observações de uma etapa (da mais recente para a mais antiga)
+  async listStageNotes(projectId: string, stageId: string): Promise<ProjectStageNote[]> {
+    const { data } = await api.get<StageNoteDTO[]>(`/projects/${projectId}/stages/${stageId}/notes`);
+    return data.map(toNote);
+  },
+
+  // Registra uma observação e devolve a lista atualizada
+  async addStageNote(projectId: string, stageId: string, text: string): Promise<ProjectStageNote[]> {
+    const { data } = await api.post<StageNoteDTO[]>(`/projects/${projectId}/stages/${stageId}/notes`, {
+      text,
+    });
+    return data.map(toNote);
+  },
 };
+

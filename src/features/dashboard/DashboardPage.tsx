@@ -1,8 +1,10 @@
 import React, { useMemo } from 'react';
-import { can } from '../../lib/permissions';
 import { AlertTriangle, AlertCircle, Calendar, User } from 'lucide-react';
+import { can } from '../../lib/permissions';
 import { useAuth } from '../../context/AuthContext';
 import { useDeliveries } from '../deliveries/useDeliveries';
+import { useDeliveryFilters } from '../deliveries/useDeliveryFilters';
+import { DeliveryFilters } from '../deliveries/DeliveryFilters';
 import { getDeliverySituation } from '../deliveries/deliverySituation';
 import { formatDate } from '../../lib/format';
 import type { Delivery } from '../../types';
@@ -25,7 +27,6 @@ function getFirstName(name: string): string {
   return capitalize(first.toLowerCase());
 }
 
-// Lista compacta de entregas, usada nos dois painéis
 // Lista compacta de entregas, usada nos dois painéis
 const DeliveryList: React.FC<{ items: Delivery[]; emptyText: string }> = ({ items, emptyText }) => {
   if (items.length === 0) {
@@ -56,24 +57,31 @@ const DeliveryList: React.FC<{ items: Delivery[]; emptyText: string }> = ({ item
 
 export const DashboardPage: React.FC = () => {
   const { user } = useAuth();
-  const scope = can(user?.role, 'deliveries:view_team') ? 'team' : 'mine';
-  const { data: deliveries = [], isLoading, isError, error, refetch } = useDeliveries(scope);
+  // Quem tem equipe vê as entregas da equipe e pode filtrar; o colaborador vê só as dele
+  const canFilter = can(user?.role, 'deliveries:view_team');
+  const { data: deliveries = [], isLoading, isError, error, refetch } = useDeliveries(
+    canFilter ? 'team' : 'mine',
+  );
+
+  const { controls, filtered } = useDeliveryFilters(deliveries);
+  const visible = canFilter ? filtered : deliveries;
+
   // Saudação e data de hoje
   const now = new Date();
   const greeting = getGreeting(now.getHours());
   const firstName = user?.name ? getFirstName(user.name) : '';
   const todayLabel = capitalize(
-    now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
+    now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }),
   );
 
-  // Números e listas calculados a partir das entregas
+  // Números e listas calculados a partir das entregas filtradas
   const summary = useMemo(() => {
     const late: Delivery[] = [];
     const atRisk: Delivery[] = [];
     let onTime = 0;
     let completed = 0;
 
-    for (const d of deliveries) {
+    for (const d of visible) {
       const situation = getDeliverySituation(d);
       if (situation === 'ATRASADO') late.push(d);
       else if (situation === 'EM RISCO') atRisk.push(d);
@@ -84,13 +92,13 @@ export const DashboardPage: React.FC = () => {
     const byDueDate = (a: Delivery, b: Delivery) => a.dueDate.localeCompare(b.dueDate);
 
     return {
-      total: deliveries.length,
+      total: visible.length,
       onTime,
       completed,
       atRisk: atRisk.sort(byDueDate),
       late: late.sort(byDueDate),
     };
-  }, [deliveries]);
+  }, [visible]);
 
   const cards = [
     {
@@ -124,10 +132,14 @@ export const DashboardPage: React.FC = () => {
       {/* Cabeçalho */}
       <div>
         <h1 className="text-2xl font-bold text-slate-800">
-          {greeting}{firstName && `, ${firstName}`} 
+          {greeting}
+          {firstName && `, ${firstName}`}
         </h1>
         <p className="text-sm text-slate-500">{todayLabel}</p>
       </div>
+
+      {/* Filtro por setor e pessoa (só para quem tem equipe) */}
+      {canFilter && deliveries.length > 0 && <DeliveryFilters filters={controls} />}
 
       {/* Erro */}
       {isError && (
@@ -147,9 +159,7 @@ export const DashboardPage: React.FC = () => {
         {cards.map((card) => (
           <div key={card.label} className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{card.label}</p>
-            <p className={`text-3xl font-extrabold mt-1 ${card.color}`}>
-              {isLoading ? '–' : card.value}
-            </p>
+            <p className={`text-3xl font-extrabold mt-1 ${card.color}`}>{isLoading ? '–' : card.value}</p>
             <p className="text-xs text-slate-400 mt-1">{card.hint}</p>
           </div>
         ))}

@@ -78,6 +78,14 @@ export const updateProjectSchema = baseProjectSchema.refine(datesInOrder, DATES_
 export const moveStageSchema = z.object({
   status: z.enum(STAGE_STATUS, 'Coluna inválida.'),
 });
+// Observação registrada numa etapa
+export const stageNoteSchema = z.object({
+  text: z
+    .string('Escreva a observação.')
+    .trim()
+    .min(1, 'Escreva a observação.')
+    .max(2000, 'A observação pode ter no máximo 2000 caracteres.'),
+});
 
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;
 export type UpdateProjectInput = z.infer<typeof updateProjectSchema>;

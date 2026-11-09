@@ -10,6 +10,7 @@ import {
   updateProjectSchema,
   stageSchema,
   moveStageSchema,
+  stageNoteSchema,
   projectIdSchema,
   type UpdateProjectInput,
 } from '../schemas/projectSchema.js';
@@ -43,6 +44,7 @@ function sendNotFound(res: Response, what = 'Projeto') {
 const FORBIDDEN_SECTOR = 'Você só pode gerenciar projetos do seu setor.';
 const FORBIDDEN_BOARD = 'Só o líder do projeto pode alterar as etapas.';
 const FORBIDDEN_MOVE = 'Você só pode mover as etapas pelas quais é responsável.';
+const FORBIDDEN_NOTE = 'Só o líder do projeto e o responsável pela etapa podem registrar observações.';
 const INVALID_RESPONSIBLE =
   'Responsável inválido: escolha uma pessoa ativa do setor do projeto.';
 
@@ -65,7 +67,7 @@ function toValues(data: UpdateProjectInput) {
   ];
 }
 
-// Projeto + setor + etapas (na ordem em que foram criadas)
+// Projeto + setor + etapas (na ordem em que foram criadas, com o número de observações)
 const SELECT_PROJECTS = `
   SELECT p.*,
          s.name AS sector_name,
@@ -82,7 +84,8 @@ const SELECT_PROJECTS = `
                'responsible_id', ps.responsible_id,
                'responsible_name', u.name,
                'status', ps.status,
-               'completed_at', ps.completed_at
+               'completed_at', ps.completed_at,
+               'notes_count', (SELECT count(*)::int FROM project_stage_notes n WHERE n.stage_id = ps.id)
              ) ORDER BY ps.position
            ) AS stages
     FROM project_stages ps
@@ -110,6 +113,16 @@ function canManageBoard(user: AuthUser, project: ProjectInfo) {
   return canActOnSector(user, project.sector_id) || project.owner_id === user.id;
 }
 
+// Quem vê o projeto: o líder do quadro ou quem é responsável por alguma etapa dele
+async function canSeeProject(db: Db, user: AuthUser, projectId: string, project: ProjectInfo) {
+  if (canManageBoard(user, project)) return true;
+  const result = await db.query(
+    'SELECT 1 FROM project_stages WHERE project_id = $1 AND responsible_id = $2 LIMIT 1;',
+    [projectId, user.id],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
 // O responsável precisa estar ATIVO, ser do setor do projeto (se houver)
 // e, para quem não é ADMIN, ser do mesmo setor de quem está escolhendo.
 async function responsiblesAreValid(
@@ -128,6 +141,18 @@ async function responsiblesAreValid(
     [unique, user.role === 'ADMIN' ? null : user.sectorId, projectSectorId],
   );
   return result.rowCount === unique.length;
+}
+
+// Observações de uma etapa, da mais recente para a mais antiga
+async function listStageNotes(db: Db, stageId: string) {
+  const result = await db.query(
+    `SELECT id, text, author_name, created_at
+     FROM project_stage_notes
+     WHERE stage_id = $1
+     ORDER BY created_at DESC;`,
+    [stageId],
+  );
+  return result.rows;
 }
 
 // ---------- Rotas ----------
@@ -427,7 +452,94 @@ router.put('/projects/:id/stages/:stageId', async (req, res) => {
   }
 });
 
-// Excluir projeto (ADMIN ou LIDER do setor; as etapas vão junto pelo ON DELETE CASCADE)
+// Listar as observações de uma etapa (quem vê o projeto)
+router.get('/projects/:id/stages/:stageId/notes', async (req, res) => {
+  const id = projectIdSchema.safeParse(req.params.id);
+  const stageId = projectIdSchema.safeParse(req.params.stageId);
+  if (!id.success || !stageId.success) {
+    sendNotFound(res, 'Etapa');
+    return;
+  }
+
+  try {
+    const project = await loadProjectInfo(pool, id.data);
+    if (!project) {
+      sendNotFound(res);
+      return;
+    }
+    if (!(await canSeeProject(pool, req.user!, id.data, project))) {
+      res.status(403).json({ message: 'Você não participa deste projeto.' });
+      return;
+    }
+
+    const stage = await pool.query('SELECT 1 FROM project_stages WHERE id = $1 AND project_id = $2;', [
+      stageId.data,
+      id.data,
+    ]);
+    if (!stage.rowCount) {
+      sendNotFound(res, 'Etapa');
+      return;
+    }
+
+    res.json(await listStageNotes(pool, stageId.data));
+  } catch (error) {
+    console.error('Erro ao listar observações:', error);
+    res.status(500).json({ message: 'Erro ao listar as observações.' });
+  }
+});
+
+// Registrar uma observação (líder do quadro ou responsável pela etapa)
+router.post('/projects/:id/stages/:stageId/notes', async (req, res) => {
+  const id = projectIdSchema.safeParse(req.params.id);
+  const stageId = projectIdSchema.safeParse(req.params.stageId);
+  if (!id.success || !stageId.success) {
+    sendNotFound(res, 'Etapa');
+    return;
+  }
+
+  const parsed = stageNoteSchema.safeParse(req.body);
+  if (!parsed.success) {
+    sendValidationError(res, parsed.error);
+    return;
+  }
+
+  try {
+    const project = await loadProjectInfo(pool, id.data);
+    if (!project) {
+      sendNotFound(res);
+      return;
+    }
+
+    const stage = await pool.query<{ responsible_id: string }>(
+      'SELECT responsible_id FROM project_stages WHERE id = $1 AND project_id = $2;',
+      [stageId.data, id.data],
+    );
+    if (!stage.rows[0]) {
+      sendNotFound(res, 'Etapa');
+      return;
+    }
+
+    const user = req.user!;
+    if (!canManageBoard(user, project) && stage.rows[0].responsible_id !== user.id) {
+      res.status(403).json({ message: FORBIDDEN_NOTE });
+      return;
+    }
+
+    // author_name guarda o nome de quem escreveu naquele momento
+    await pool.query(
+      `INSERT INTO project_stage_notes (stage_id, author_id, author_name, text)
+       VALUES ($1, $2, $3, $4);`,
+      [stageId.data, user.id, user.name, parsed.data.text],
+    );
+
+    res.status(201).json(await listStageNotes(pool, stageId.data));
+  } catch (error) {
+    console.error('Erro ao registrar observação:', error);
+    res.status(500).json({ message: 'Erro ao registrar a observação.' });
+  }
+});
+
+// Excluir projeto (ADMIN ou LIDER do setor; etapas e observações vão junto pelo ON DELETE CASCADE)
 router.delete('/projects/:id', requirePermission('projects:manage'), async (req, res) => {
   const id = projectIdSchema.safeParse(req.params.id);
   if (!id.success) {

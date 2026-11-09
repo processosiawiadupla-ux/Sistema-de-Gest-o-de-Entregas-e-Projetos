@@ -36,6 +36,14 @@ export interface ProjectStage {
   responsibleName: string;
   status: ProjectStageStatus;
   completedAt: string | null;
+  notesCount: number;
+}
+// Observação registrada numa etapa de projeto
+export interface ProjectStageNote {
+  id: string;
+  text: string;
+  authorName: string;
+  createdAt: string;
 }
 
 // 5. Estrutura Completa do Projeto

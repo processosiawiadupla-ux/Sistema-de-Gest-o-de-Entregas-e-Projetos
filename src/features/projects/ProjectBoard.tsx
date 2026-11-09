@@ -1,7 +1,21 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Calendar, ChevronLeft, ChevronRight, Pencil, User } from 'lucide-react';
+import {
+  ArrowLeft,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  MessageSquare,
+  Pencil,
+  User,
+} from 'lucide-react';
 import type { Project, ProjectStage, ProjectStageStatus } from '../../types';
-import { useMoveStage, useUpdateStage, useProjectAssignees } from './useProjects';
+import {
+  useMoveStage,
+  useUpdateStage,
+  useProjectAssignees,
+  useStageNotes,
+  useAddStageNote,
+} from './useProjects';
 import { canManageBoard, canMoveStage } from './projectAccess';
 import { formatDate } from '../../lib/format';
 import { useAuth } from '../../context/AuthContext';
@@ -43,6 +57,15 @@ function stageBadge(stage: ProjectStage) {
   return { label: 'No prazo', className: green };
 }
 
+const formatDateTime = (iso: string) =>
+  new Date(iso).toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
 interface Props {
   project: Project;
   onBack: () => void;
@@ -57,8 +80,10 @@ export const ProjectBoard: React.FC<Props> = ({ project, onBack, onEdit }) => {
 
   const [overColumn, setOverColumn] = useState<ProjectStageStatus | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [editingStage, setEditingStage] = useState<ProjectStage | null>(null);
+  const [openStageId, setOpenStageId] = useState<string | null>(null);
 
+  // Busca a etapa aberta na lista atual, para o modal mostrar sempre os dados mais recentes
+  const openStage = project.stages.find((s) => s.id === openStageId) ?? null;
   const doneCount = project.stages.filter((s) => s.status === 'done').length;
 
   const move = (stage: ProjectStage, status: ProjectStageStatus) => {
@@ -131,7 +156,8 @@ export const ProjectBoard: React.FC<Props> = ({ project, onBack, onEdit }) => {
 
       {!isBoardLeader && (
         <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5">
-          Você pode mover as etapas pelas quais é responsável. As demais ficam com o líder do projeto.
+          Você pode mover e registrar observações nas etapas pelas quais é responsável. Clique num cartão para ver os
+          detalhes.
         </p>
       )}
 
@@ -188,12 +214,10 @@ export const ProjectBoard: React.FC<Props> = ({ project, onBack, onEdit }) => {
                           setDraggingId(stage.id);
                         }}
                         onDragEnd={() => setDraggingId(null)}
-                        onClick={() => isBoardLeader && setEditingStage(stage)}
-                        className={`bg-white border rounded-xl p-3 shadow-sm space-y-2 ${
+                        onClick={() => setOpenStageId(stage.id)}
+                        className={`bg-white border rounded-xl p-3 shadow-sm space-y-2 cursor-pointer hover:border-slate-300 ${
                           isMine ? 'border-blue-300 ring-1 ring-blue-100' : 'border-slate-200'
-                        } ${movable ? 'cursor-grab active:cursor-grabbing hover:border-slate-300' : 'cursor-default'} ${
-                          draggingId === stage.id ? 'opacity-40' : ''
-                        }`}
+                        } ${movable ? 'active:cursor-grabbing' : ''} ${draggingId === stage.id ? 'opacity-40' : ''}`}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <p className="text-sm font-semibold text-slate-900">
@@ -218,39 +242,49 @@ export const ProjectBoard: React.FC<Props> = ({ project, onBack, onEdit }) => {
                           </span>
                         </div>
 
-                        {/* Botões para mover (funcionam também no celular) */}
-                        {movable && (
-                          <div className="flex justify-between pt-1">
-                            {prev ? (
-                              <button
-                                type="button"
-                                title={`Mover para ${prev.title}`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  move(stage, prev.status);
-                                }}
-                                className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
-                              >
-                                <ChevronLeft className="w-4 h-4" />
-                              </button>
-                            ) : (
-                              <span />
-                            )}
-                            {next && (
-                              <button
-                                type="button"
-                                title={`Mover para ${next.title}`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  move(stage, next.status);
-                                }}
-                                className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
-                              >
-                                <ChevronRight className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
-                        )}
+                        {/* Contador de observações + botões para mover */}
+                        <div className="flex items-center justify-between pt-1">
+                          <span
+                            className={`inline-flex items-center gap-1 text-xs ${
+                              stage.notesCount > 0 ? 'text-slate-600' : 'text-slate-300'
+                            }`}
+                            title={`${stage.notesCount} observação(ões)`}
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            {stage.notesCount}
+                          </span>
+
+                          {movable && (
+                            <div className="flex gap-1">
+                              {prev && (
+                                <button
+                                  type="button"
+                                  title={`Mover para ${prev.title}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    move(stage, prev.status);
+                                  }}
+                                  className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                                >
+                                  <ChevronLeft className="w-4 h-4" />
+                                </button>
+                              )}
+                              {next && (
+                                <button
+                                  type="button"
+                                  title={`Mover para ${next.title}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    move(stage, next.status);
+                                  }}
+                                  className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                                >
+                                  <ChevronRight className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </article>
                     );
                   })}
@@ -265,28 +299,86 @@ export const ProjectBoard: React.FC<Props> = ({ project, onBack, onEdit }) => {
         </div>
       )}
 
-      {editingStage && (
-        <StageEditModal project={project} stage={editingStage} onClose={() => setEditingStage(null)} />
+      {openStage && (
+        <StageModal
+          project={project}
+          stage={openStage}
+          canEdit={isBoardLeader}
+          canNote={canMoveStage(user, project, openStage)}
+          onClose={() => setOpenStageId(null)}
+        />
       )}
     </div>
   );
 };
 
-// ---------- Modal para editar uma etapa (só o líder do quadro abre) ----------
+// ---------- Modal da etapa: dados (editáveis pelo líder) + observações ----------
 
-interface StageEditProps {
+interface StageModalProps {
   project: Project;
   stage: ProjectStage;
+  canEdit: boolean; // líder do quadro
+  canNote: boolean; // líder do quadro ou responsável pela etapa
   onClose: () => void;
 }
 
-const StageEditModal: React.FC<StageEditProps> = ({ project, stage, onClose }) => {
+const StageModal: React.FC<StageModalProps> = ({ project, stage, canEdit, canNote, onClose }) => {
+  const badge = stageBadge(stage);
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-5 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
+          <div>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Etapa {stage.position}</p>
+            <h2 className="text-lg font-bold text-slate-900">{stage.title}</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600 text-sm font-bold p-1 cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+
+        {canEdit ? (
+          <StageEditForm project={project} stage={stage} />
+        ) : (
+          <dl className="grid grid-cols-3 gap-3 text-sm">
+            <div>
+              <dt className="text-xs text-slate-500">Prazo</dt>
+              <dd className="font-medium text-slate-800">{formatDate(stage.dueDate)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-slate-500">Responsável</dt>
+              <dd className="font-medium text-slate-800 truncate">{stage.responsibleName}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-slate-500">Situação</dt>
+              <dd>
+                <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold border ${badge.className}`}>
+                  {badge.label}
+                </span>
+              </dd>
+            </div>
+          </dl>
+        )}
+
+        <StageNotes project={project} stage={stage} canNote={canNote} />
+      </div>
+    </div>
+  );
+};
+
+// Formulário de edição (título, prazo e responsável) - só o líder do quadro
+const StageEditForm: React.FC<{ project: Project; stage: ProjectStage }> = ({ project, stage }) => {
   const updateStage = useUpdateStage();
   const { data: assignees = [] } = useProjectAssignees();
 
   const [title, setTitle] = useState(stage.title);
   const [dueDate, setDueDate] = useState(stage.dueDate);
   const [responsibleId, setResponsibleId] = useState(stage.responsibleId);
+  const [saved, setSaved] = useState(false);
 
   // Só pessoas do setor do projeto ("Geral" = todas)
   const sectorPeople = project.sectorId
@@ -301,86 +393,135 @@ const StageEditModal: React.FC<StageEditProps> = ({ project, stage, onClose }) =
         ...sectorPeople,
       ];
 
+  const changed =
+    title.trim() !== stage.title || dueDate !== stage.dueDate || responsibleId !== stage.responsibleId;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setSaved(false);
     updateStage.mutate(
       { projectId: project.id, stageId: stage.id, input: { title, dueDate, responsibleId } },
-      { onSuccess: onClose },
+      { onSuccess: () => setSaved(true) },
     );
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <h2 className="text-lg font-bold text-slate-900">Editar etapa {stage.position}</h2>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 text-sm font-bold p-1 cursor-pointer"
-          >
-            ✕
-          </button>
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <div>
+        <label className={labelClass}>Título *</label>
+        <input type="text" required value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} />
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className={labelClass}>Prazo *</label>
+          <input
+            type="date"
+            required
+            value={dueDate}
+            min={project.startDate || undefined}
+            max={project.dueDate || undefined}
+            onChange={(e) => setDueDate(e.target.value)}
+            className={inputClass}
+          />
         </div>
+        <div>
+          <label className={labelClass}>Responsável *</label>
+          <select
+            required
+            value={responsibleId}
+            onChange={(e) => setResponsibleId(e.target.value)}
+            className={inputClass}
+          >
+            {options.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.sectorName ? `${a.name} (${a.sectorName})` : a.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className={labelClass}>Título *</label>
-            <input
-              type="text"
-              required
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label className={labelClass}>Prazo *</label>
-            <input
-              type="date"
-              required
-              value={dueDate}
-              min={project.startDate || undefined}
-              max={project.dueDate || undefined}
-              onChange={(e) => setDueDate(e.target.value)}
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label className={labelClass}>Responsável *</label>
-            <select
-              required
-              value={responsibleId}
-              onChange={(e) => setResponsibleId(e.target.value)}
-              className={inputClass}
-            >
-              {options.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.sectorName ? `${a.name} (${a.sectorName})` : a.name}
-                </option>
-              ))}
-            </select>
-          </div>
+      {updateStage.isError && <p className="text-sm text-rose-600">{updateStage.error.message}</p>}
 
-          {updateStage.isError && <p className="text-sm text-rose-600">{updateStage.error.message}</p>}
+      <div className="flex items-center justify-end gap-3">
+        {saved && !changed && <span className="text-xs text-emerald-700">✓ Salvo</span>}
+        <button
+          type="submit"
+          disabled={!changed || updateStage.isPending}
+          className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-sm font-medium text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {updateStage.isPending ? 'Salvando...' : 'Salvar etapa'}
+        </button>
+      </div>
+    </form>
+  );
+};
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2.5 rounded-xl border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
-            >
-              Cancelar
-            </button>
+// Histórico de observações da etapa
+const StageNotes: React.FC<{ project: Project; stage: ProjectStage; canNote: boolean }> = ({
+  project,
+  stage,
+  canNote,
+}) => {
+  const { data: notes = [], isLoading, isError, error } = useStageNotes(project.id, stage.id);
+  const addNote = useAddStageNote();
+  const [text, setText] = useState('');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!text.trim()) return;
+    addNote.mutate(
+      { projectId: project.id, stageId: stage.id, text: text.trim() },
+      { onSuccess: () => setText('') },
+    );
+  };
+
+  return (
+    <div className="space-y-3 pt-4 border-t border-slate-100">
+      <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+        <MessageSquare className="w-4 h-4 text-slate-400" />
+        Observações
+      </h3>
+
+      {canNote && (
+        <form onSubmit={handleSubmit} className="space-y-2">
+          <textarea
+            rows={3}
+            maxLength={2000}
+            placeholder="Escreva o que foi feito, o que falta ou algum ponto de atenção..."
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            className={inputClass}
+          />
+          {addNote.isError && <p className="text-sm text-rose-600">{addNote.error.message}</p>}
+          <div className="flex justify-end">
             <button
               type="submit"
-              disabled={updateStage.isPending}
-              className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-sm font-medium text-white shadow-lg shadow-blue-600/20 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              disabled={!text.trim() || addNote.isPending}
+              className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-sm font-medium text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {updateStage.isPending ? 'Salvando...' : 'Salvar'}
+              {addNote.isPending ? 'Registrando...' : 'Registrar observação'}
             </button>
           </div>
         </form>
-      </div>
+      )}
+
+      {isLoading && <p className="text-sm text-slate-500">Carregando observações...</p>}
+      {isError && <p className="text-sm text-rose-600">{error.message}</p>}
+      {!isLoading && !isError && notes.length === 0 && (
+        <p className="text-sm text-slate-500">Nenhuma observação registrada ainda.</p>
+      )}
+
+      <ul className="space-y-3">
+        {notes.map((note) => (
+          <li key={note.id} className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+            <p className="text-xs text-slate-500 mb-1">
+              <b className="text-slate-700">{note.authorName}</b> · {formatDateTime(note.createdAt)}
+            </p>
+            <p className="text-sm text-slate-800 whitespace-pre-wrap">{note.text}</p>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 };
