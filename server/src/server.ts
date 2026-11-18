@@ -1,3 +1,5 @@
+import recurrenceRoutes from './routes/recurrenceRoutes.js';
+import { startRecurrenceScheduler } from './jobs/recurrences.js';
 import { env } from './config/env.js';
 import express from 'express';
 import cookieParser from 'cookie-parser';
@@ -38,10 +40,13 @@ app.use('/api', projectRoutes);
 app.use('/api', deliveryRoutes);
 app.use('/api', sectorRoutes);
 app.use('/api', teamRoutes);
+app.use('/api', recurrenceRoutes);
 
 // Iniciar servidor, banco e e-mail
 app.listen(env.PORT, async () => {
   console.log(`Servidor a correr na porta ${env.PORT}`);
   await initializeDatabase();
   await verifyMailer();
+  await startRecurrenceScheduler();
+  startRecurrenceScheduler();
 });

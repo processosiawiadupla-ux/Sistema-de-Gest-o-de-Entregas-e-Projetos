@@ -8,6 +8,7 @@ import { DashboardPage } from './features/dashboard/DashboardPage';
 import { EquipePage } from './features/team/EquipePage';
 import { ProjetosPage } from './features/projects/ProjetosPage';
 import { EntregasPage } from './features/deliveries/EntregasPage';
+import { RotinasPage } from './features/deliveries/RotinasPage';
 import { RelatoriosPage } from './features/reports/RelatoriosPage';
 import { PerfilPage } from './features/profile/PerfilPage';
 import { ConfiguracoesPage } from './features/settings/ConfiguracoesPage';
@@ -65,6 +66,8 @@ const MainLayout: React.FC = () => {
         return <EntregasPage key="mine" scope="mine" />;
       case 'entregas-equipe':
         return canViewTeam ? <EntregasPage key="team" scope="team" /> : <DashboardPage />;
+      case 'rotinas':
+        return can(user.role, 'deliveries:assign') ? <RotinasPage /> : <DashboardPage />;
       case 'projetos':
         return can(user.role, 'projects:view') ? <ProjetosPage /> : <DashboardPage />;
       case 'equipe':

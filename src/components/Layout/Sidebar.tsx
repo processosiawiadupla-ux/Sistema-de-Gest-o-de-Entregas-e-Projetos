@@ -11,6 +11,7 @@ import {
   LogOut,
   PlusCircle,
   UserPlus,
+  Repeat,
   type LucideIcon,
 } from 'lucide-react';
 import { WiaLogo } from '../Wialogo';
@@ -48,6 +49,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       items: [
         { tab: 'minhas-entregas', label: 'Minhas entregas', Icon: ClipboardList, visible: true },
         { tab: 'entregas-equipe', label: 'Entregas da equipe', Icon: CalendarDays, visible: can(role, 'deliveries:view_team') },
+        { tab: 'rotinas', label: 'Rotinas', Icon: Repeat, visible: can(role, 'deliveries:assign') },
       ],
     },
     {
