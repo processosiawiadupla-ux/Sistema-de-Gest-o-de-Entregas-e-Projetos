@@ -37,16 +37,6 @@ export function leadDaysFor(rule: { frequency: Frequency; weekday: number; month
   return 0;
 }
 
-function appearsText(rule: RuleState): string {
-  if (rule.frequency === 'WEEKLY') {
-    return rule.weekday === 1 ? 'No próprio dia do prazo (segunda-feira)' : 'Na segunda-feira da semana do prazo';
-  }
-  if (rule.frequency === 'MONTHLY') {
-    return rule.monthDay === 1 ? 'No próprio dia do prazo (dia 1º)' : 'No dia 1º do mês do prazo';
-  }
-  return 'No próprio dia do prazo';
-}
-
 // Frase curta que descreve a rotina (usada na lista de Rotinas)
 export function describeRule(rule: {
   frequency: Frequency;
@@ -65,33 +55,6 @@ export function describeRule(rule: {
   return `${base} · ${lead}`;
 }
 
-// ---------- Datas (mesma regra do backend) ----------
-
-const toUTC = (iso: string) => {
-  const [y, m, d] = iso.split('-').map(Number);
-  return Date.UTC(y, m - 1, d);
-};
-const addDays = (iso: string, days: number) => new Date(toUTC(iso) + days * 86_400_000).toISOString().slice(0, 10);
-const isoWeekday = (iso: string) => ((new Date(toUTC(iso)).getUTCDay() + 6) % 7) + 1;
-const lastDayOfMonth = (iso: string) => {
-  const [y, m] = iso.split('-').map(Number);
-  return new Date(Date.UTC(y, m, 0)).getUTCDate();
-};
-
-function isDueDate(rule: RuleState, iso: string) {
-  if (rule.frequency === 'DAILY') return isoWeekday(iso) <= 5;
-  if (rule.frequency === 'WEEKLY') return isoWeekday(iso) === rule.weekday;
-  return Number(iso.slice(8, 10)) === Math.min(rule.monthDay, lastDayOfMonth(iso));
-}
-
-// Primeiro prazo a partir de hoje (ou do início, se for depois)
-function nextDue(rule: RuleState): string {
-  const today = todayISO();
-  let day = rule.startDate > today ? rule.startDate : today;
-  for (let i = 0; i < 400 && !isDueDate(rule, day); i++) day = addDays(day, 1);
-  return day;
-}
-
 // ---------- Campos ----------
 
 const inputClass =
@@ -107,8 +70,6 @@ interface Props {
 
 export const RecurrenceFields: React.FC<Props> = ({ value, onChange, showFrequency = false, startLocked = false }) => {
   const today = todayISO();
-  const due = nextDue(value);
-  const appears = addDays(due, -leadDaysFor(value));
 
   return (
     <div className="space-y-4 rounded-2xl border border-blue-100 bg-blue-50/40 p-4">
@@ -195,8 +156,6 @@ export const RecurrenceFields: React.FC<Props> = ({ value, onChange, showFrequen
           </div>
         )}
       </div>
-
-      
     </div>
   );
 };
