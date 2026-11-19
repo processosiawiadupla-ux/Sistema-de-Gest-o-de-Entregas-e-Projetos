@@ -1,5 +1,3 @@
-import recurrenceRoutes from './routes/recurrenceRoutes.js';
-import { startRecurrenceScheduler } from './jobs/recurrences.js';
 import { env } from './config/env.js';
 import express from 'express';
 import cookieParser from 'cookie-parser';
@@ -15,6 +13,12 @@ import adminRoutes from './routes/adminRoutes.js';
 import teamRoutes from './routes/teamRoutes.js';
 import meRoutes from './routes/meRoutes.js';
 import passwordResetRoutes from './routes/passwordResetRoutes.js';
+import recurrenceRoutes from './routes/recurrenceRoutes.js';
+import { startRecurrenceScheduler } from './jobs/recurrences.js';
+
+// ATENÇÃO: o import do env precisa ser sempre o PRIMEIRO,
+// senão a conexão com o banco é criada antes de o .env ser lido.
+
 const app = express();
 
 // Em produção o Nginx fica na frente: confia no IP que ele informa
@@ -42,11 +46,10 @@ app.use('/api', sectorRoutes);
 app.use('/api', teamRoutes);
 app.use('/api', recurrenceRoutes);
 
-// Iniciar servidor, banco e e-mail
+// Iniciar servidor, banco, e-mail e a verificação automática das rotinas
 app.listen(env.PORT, async () => {
   console.log(`Servidor a correr na porta ${env.PORT}`);
   await initializeDatabase();
   await verifyMailer();
-  await startRecurrenceScheduler();
   startRecurrenceScheduler();
 });
