@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Minus, Plus } from 'lucide-react';
 import type { Project, ProjectStatus } from '../../types';
 import type { StageInput } from '../../services/projectService';
 import { useCreateProject, useUpdateProject, useProjectAssignees } from './useProjects';
@@ -9,15 +10,14 @@ const inputClass =
   'w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:text-slate-400 disabled:cursor-not-allowed';
 const labelClass = 'block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1';
 
-type StageCount = 1 | 5 | 10;
+// Quantidade de etapas
+const MIN_STAGES = 1;
+const MAX_STAGES = 100;
 
-const STAGE_OPTIONS: { count: StageCount; label: string; hint: string }[] = [
-  { count: 1, label: 'Etapa única', hint: 'concluída = 100%' },
-  { count: 5, label: '5 etapas', hint: '20% cada' },
-  { count: 10, label: '10 etapas', hint: '10% cada' },
-];
+const clampCount = (n: number) => Math.min(MAX_STAGES, Math.max(MIN_STAGES, Math.round(n)));
 
 const emptyStage = (): StageInput => ({ title: '', dueDate: '', responsibleId: '' });
+
 
 interface Props {
   project: Project | null; // null = criar
@@ -44,8 +44,11 @@ export const ProjectFormModal: React.FC<Props> = ({ project, onClose }) => {
   const [status, setStatus] = useState<ProjectStatus>(project?.status ?? 'Não iniciado');
   const [notes, setNotes] = useState(project?.notes ?? '');
 
-  const [stageCount, setStageCount] = useState<StageCount>(1);
+  // Etapas: "stages" guarda tudo o que já foi digitado; só as primeiras "stageCount" aparecem e são salvas
+  const [stageCount, setStageCount] = useState(1);
+  const [countText, setCountText] = useState('1'); // o que está escrito no campo (pode ficar vazio enquanto digita)
   const [stages, setStages] = useState<StageInput[]>([emptyStage()]);
+  const visibleStages = stages.slice(0, stageCount);
 
   // LIDER: o setor é sempre o dele (o mesmo das pessoas que ele pode escolher)
   const leaderSectorId = assignees[0]?.sectorId ?? '';
@@ -72,9 +75,22 @@ export const ProjectFormModal: React.FC<Props> = ({ project, onClose }) => {
   };
 
   // Muda a quantidade de etapas sem perder o que já foi digitado
-  const changeStageCount = (count: StageCount) => {
+  const changeStageCount = (value: number) => {
+    const count = clampCount(value);
     setStageCount(count);
-    setStages((prev) => Array.from({ length: count }, (_, i) => prev[i] ?? emptyStage()));
+    setCountText(String(count));
+    setStages((prev) =>
+      prev.length >= count ? prev : [...prev, ...Array.from({ length: count - prev.length }, emptyStage)],
+    );
+  };
+
+  // Digitando no campo: aceita vazio enquanto escreve; aplica quando é um número válido
+  const typeStageCount = (text: string) => {
+    setCountText(text);
+    const n = Number(text);
+    if (text !== '' && Number.isFinite(n) && n >= MIN_STAGES && n <= MAX_STAGES) {
+      changeStageCount(n);
+    }
   };
 
   const updateStageField = (index: number, field: keyof StageInput, value: string) => {
@@ -106,9 +122,12 @@ export const ProjectFormModal: React.FC<Props> = ({ project, onClose }) => {
     if (isEditing) {
       updateProject.mutate({ id: project.id, input }, { onSuccess: onClose });
     } else {
-      createProject.mutate({ ...input, stages }, { onSuccess: onClose });
+      createProject.mutate({ ...input, stages: visibleStages }, { onSuccess: onClose });
     }
   };
+
+  const stepButtonClass =
+    'w-10 h-10 flex items-center justify-center rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed';
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -235,37 +254,44 @@ export const ProjectFormModal: React.FC<Props> = ({ project, onClose }) => {
           </div>
 
           {/* Etapas: só ao criar. Depois, elas são editadas no quadro do projeto. */}
-          {isEditing ? (
-            <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5">
-              As etapas são editadas no quadro do projeto: clique no projeto e depois na etapa.
-            </p>
-          ) : (
+          {!isEditing && (
             <div className="space-y-3 pt-2 border-t border-slate-100">
-              <label className={labelClass}>Etapas *</label>
+              <label className={labelClass}>Selecione a quantidade de etapas *</label>
 
-              <div className="grid grid-cols-3 gap-2">
-                {STAGE_OPTIONS.map((opt) => {
-                  const active = stageCount === opt.count;
-                  return (
-                    <button
-                      key={opt.count}
-                      type="button"
-                      onClick={() => changeStageCount(opt.count)}
-                      className={`text-left rounded-xl border px-3.5 py-2.5 cursor-pointer transition-all ${
-                        active
-                          ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500'
-                          : 'border-slate-300 hover:bg-slate-50'
-                      }`}
-                    >
-                      <span className="block text-sm font-semibold text-slate-900">{opt.label}</span>
-                      <span className="block text-xs text-slate-500">{opt.hint}</span>
-                    </button>
-                  );
-                })}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  aria-label="Menos uma etapa"
+                  onClick={() => changeStageCount(stageCount - 1)}
+                  disabled={stageCount <= MIN_STAGES}
+                  className={stepButtonClass}
+                >
+                  <Minus className="w-4 h-4" />
+                </button>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={MIN_STAGES}
+                  max={MAX_STAGES}
+                  value={countText}
+                  onChange={(e) => typeStageCount(e.target.value)}
+                  onBlur={() => setCountText(String(stageCount))}
+                  aria-label="Quantidade de etapas"
+                  className={`${inputClass} w-20 text-center`}
+                />
+                <button
+                  type="button"
+                  aria-label="Mais uma etapa"
+                  onClick={() => changeStageCount(stageCount + 1)}
+                  disabled={stageCount >= MAX_STAGES}
+                  className={stepButtonClass}
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
               </div>
 
-              <div className="space-y-2">
-                {stages.map((stage, index) => (
+              <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                {visibleStages.map((stage, index) => (
                   <div
                     key={index}
                     className="grid grid-cols-1 sm:grid-cols-[auto_1fr_9.5rem_11rem] gap-2 items-center"

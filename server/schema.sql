@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS deliveries (
 CREATE TABLE IF NOT EXISTS project_stages (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id     UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-  position       SMALLINT NOT NULL CHECK (position BETWEEN 1 AND 10),
+  position       SMALLINT NOT NULL CHECK (position BETWEEN 1 AND 100),
   title          VARCHAR(255) NOT NULL,
   due_date       DATE NOT NULL,
   responsible_id UUID NOT NULL REFERENCES users(id),

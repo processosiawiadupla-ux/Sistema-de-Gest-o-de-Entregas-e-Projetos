@@ -18,7 +18,6 @@ import type { DeliverySituation } from '../../types';
 import type { DeliveryScope } from '../../services/deliveryService';
 import { useAuth } from '../../context/AuthContext';
 import { useDeliveries } from './useDeliveries';
-import { useSectors } from '../sectors/useSectors';
 import { getDeliverySituation } from './deliverySituation';
 import { formatDate } from '../../lib/format';
 import { ProgressBar } from './ProgressBar';
@@ -28,7 +27,6 @@ import { LaunchModal } from './LaunchModal';
 type FilterOption = 'PENDENTES' | 'TODOS' | 'NO PRAZO' | 'EM RISCO' | 'ATRASADO' | 'CONCLUIDOS';
 
 const SITUATION_STYLES: Record<DeliverySituation, { label: string; className: string; Icon: LucideIcon }> = {
-  
   'NO PRAZO': { label: 'No prazo', className: 'bg-blue-50 text-blue-700 border-blue-200', Icon: Clock },
   'EM RISCO': { label: 'Em risco', className: 'bg-amber-50 text-amber-700 border-amber-200', Icon: AlertCircle },
   'ATRASADO': { label: 'Atrasado', className: 'bg-rose-50 text-rose-700 border-rose-200', Icon: AlertTriangle },
@@ -58,14 +56,10 @@ export const EntregasPage: React.FC<{ scope: DeliveryScope }> = ({ scope }) => {
   const isTeam = scope === 'team';
   const isAdmin = user?.role === 'ADMIN';
 
-  // ADMIN pode filtrar a equipe por setor (no servidor)
-  const { data: sectors = [] } = useSectors();
-  const [sectorFilter, setSectorFilter] = useState('');
-  const { data: deliveries = [], isLoading, isError, error, refetch } = useDeliveries(
-    scope,
-    isTeam && isAdmin ? sectorFilter || undefined : undefined
-  );
+  // O backend já limita: ADMIN recebe todas, LIDER só as do setor dele
+  const { data: deliveries = [], isLoading, isError, error, refetch } = useDeliveries(scope);
 
+  const [personFilter, setPersonFilter] = useState(''); // '' = todas as pessoas
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState<FilterOption>(isTeam ? 'TODOS' : 'PENDENTES');
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -76,29 +70,46 @@ export const EntregasPage: React.FC<{ scope: DeliveryScope }> = ({ scope }) => {
     [deliveries]
   );
 
-    const counts = useMemo(() => {
+  // Pessoas que aparecem no filtro: quem tem entrega na lista, em ordem alfabética
+  const people = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const d of deliveries) {
+      if (d.assignedToId) map.set(d.assignedToId, d.assignedToName || 'Sem nome');
+    }
+    return [...map.entries()]
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  }, [deliveries]);
+
+  // Primeiro filtra pela pessoa; os números dos botões seguem essa escolha
+  const byPerson = useMemo(
+    () => (personFilter ? withSituation.filter((d) => d.assignedToId === personFilter) : withSituation),
+    [withSituation, personFilter]
+  );
+
+  const counts = useMemo(() => {
     const result: Record<FilterOption, number> = { PENDENTES: 0, TODOS: 0, 'NO PRAZO': 0, 'EM RISCO': 0, ATRASADO: 0, CONCLUIDOS: 0 };
-    for (const d of withSituation) {
+    for (const d of byPerson) {
       for (const f of FILTERS) {
         if (matchesFilter(d.situation, f.value)) result[f.value] += 1;
       }
     }
     return result;
-  }, [withSituation]);
+  }, [byPerson]);
 
   const term = searchTerm.trim().toLowerCase();
-  const filtered = withSituation.filter((d) => {
+  const filtered = byPerson.filter((d) => {
     const matchesSearch =
       !term || [d.title, d.assignedToName, d.sector].some((value) => value.toLowerCase().includes(term));
     return matchesSearch && matchesFilter(d.situation, filter);
   });
 
-  const title = isTeam ? 'Entregas da equipe' : 'Minhas entregas';
+  const title = isTeam ? 'Entregas' : 'Minhas entregas';
   const subtitle = isTeam
     ? isAdmin
-      ? 'Acompanhe as entregas de todos os setores.'
+      ? 'Entregas de todos os setores.'
       : `Entregas do setor ${user?.sectorName ?? ''}.`
-    : 'Atividades atribuídas a você. Lance cada etapa conforme for concluindo.';
+    : 'Atividades atribuídas a você.';
 
   return (
     <div className="space-y-6">
@@ -109,18 +120,19 @@ export const EntregasPage: React.FC<{ scope: DeliveryScope }> = ({ scope }) => {
           <p className="text-sm text-slate-500">{subtitle}</p>
         </div>
 
-        {isTeam && isAdmin && (
+        {isTeam && (
           <div className="relative w-full sm:w-64">
-            <Building className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
             <select
-              value={sectorFilter}
-              onChange={(e) => setSectorFilter(e.target.value)}
+              value={personFilter}
+              onChange={(e) => setPersonFilter(e.target.value)}
+              aria-label="Filtrar por pessoa"
               className="w-full bg-white border border-slate-300 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
             >
-              <option value="">Todos os setores</option>
-              {sectors.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
+              <option value="">Todas as pessoas</option>
+              {people.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
                 </option>
               ))}
             </select>
@@ -173,14 +185,14 @@ export const EntregasPage: React.FC<{ scope: DeliveryScope }> = ({ scope }) => {
       {isLoading && <p className="text-sm text-slate-500">Carregando entregas...</p>}
 
       {!isLoading && !isError && filtered.length === 0 && (
-                <p className="text-sm text-slate-500 bg-white border border-slate-200 rounded-2xl p-8 text-center">
+        <p className="text-sm text-slate-500 bg-white border border-slate-200 rounded-2xl p-8 text-center">
           {deliveries.length === 0
             ? isTeam
-              ? 'Nenhuma entrega no setor ainda. Use "Atribuir Entrega" para começar.'
+              ? 'Nenhuma entrega cadastrada.'
               : 'Você não tem atividades atribuídas.'
-            : filter === 'PENDENTES' && !term
+            : filter === 'PENDENTES' && !term && !personFilter
               ? 'Você não tem entregas pendentes. 🎉'
-              : 'Nenhuma entrega encontrada para essa busca ou filtro.'}
+              : 'Nenhuma entrega encontrada para esse filtro.'}
         </p>
       )}
 

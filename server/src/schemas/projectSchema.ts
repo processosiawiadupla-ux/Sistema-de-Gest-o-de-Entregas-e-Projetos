@@ -11,8 +11,9 @@ export const PROJECT_STATUS = [
 // Colunas do Kanban: A fazer, Em andamento, Concluído
 export const STAGE_STATUS = ['todo', 'doing', 'done'] as const;
 
-// Mesmas opções das entregas: etapa única, 5 ou 10 etapas
-export const STAGE_COUNTS = [1, 5, 10] as const;
+// Quantidade de etapas: o usuário escolhe, de 1 a 20
+export const MIN_STAGES = 1;
+export const MAX_STAGES = 100;
 
 // Uma etapa do projeto: título, prazo e responsável
 export const stageSchema = z.object({
@@ -56,10 +57,8 @@ export const createProjectSchema = baseProjectSchema
   .extend({
     stages: z
       .array(stageSchema, 'Defina as etapas do projeto.')
-      .refine(
-        (stages) => (STAGE_COUNTS as readonly number[]).includes(stages.length),
-        'O projeto deve ter 1, 5 ou 10 etapas.',
-      ),
+      .min(MIN_STAGES, 'O projeto precisa de pelo menos 1 etapa.')
+      .max(MAX_STAGES, `O projeto pode ter no máximo ${MAX_STAGES} etapas.`),
   })
   .refine(datesInOrder, DATES_MESSAGE)
   .refine(
@@ -78,6 +77,7 @@ export const updateProjectSchema = baseProjectSchema.refine(datesInOrder, DATES_
 export const moveStageSchema = z.object({
   status: z.enum(STAGE_STATUS, 'Coluna inválida.'),
 });
+
 // Observação registrada numa etapa
 export const stageNoteSchema = z.object({
   text: z

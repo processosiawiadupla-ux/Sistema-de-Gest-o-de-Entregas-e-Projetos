@@ -48,7 +48,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       title: 'Entregas',
       items: [
         { tab: 'minhas-entregas', label: 'Minhas entregas', Icon: ClipboardList, visible: true },
-        { tab: 'entregas-equipe', label: 'Entregas da equipe', Icon: CalendarDays, visible: can(role, 'deliveries:view_team') },
+        { tab: 'entregas-equipe', label: 'Entregas', Icon: CalendarDays, visible: can(role, 'deliveries:view_team') },
         { tab: 'rotinas', label: 'Rotinas', Icon: Repeat, visible: can(role, 'deliveries:assign') },
       ],
     },
