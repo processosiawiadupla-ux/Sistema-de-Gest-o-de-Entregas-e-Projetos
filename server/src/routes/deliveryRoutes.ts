@@ -1,9 +1,8 @@
 import { Router, type Response } from 'express';
-import type { PoolClient } from 'pg';
 import type { ZodError } from 'zod';
 import { pool } from '../config/database.js';
 import type { AuthUser } from '../auth/types.js';
-import { can, canActOnSector } from '../auth/permissions.js'
+import { can, canActOnSector } from '../auth/permissions.js';
 import { requirePermission } from '../auth/authorize.js';
 import {
   createDeliverySchema,
@@ -12,8 +11,18 @@ import {
   listDeliveriesSchema,
   deliveryIdSchema,
   type DeliveryBaseInput,
-  type LaunchNote,
 } from '../schemas/deliverySchema.js';
+import {
+  evidenceSchema,
+  prepareFiles,
+  writeFiles,
+  removeFiles,
+  createSubmission,
+  completeDeliveryStage,
+  recalcProgress,
+  needsReview,
+  type PreparedFile,
+} from '../review/submissions.js';
 
 const router = Router();
 
@@ -40,7 +49,21 @@ function isForeignKeyError(error: unknown) {
   return (error as { code?: string }).code === '23503';
 }
 
-// Entregas com o nome do setor e a lista de etapas, em ordem
+// Código 23505: já existe um envio pendente para esta etapa
+function isUniqueError(error: unknown) {
+  return (error as { code?: string }).code === '23505';
+}
+
+// Evidência obrigatória (links e/ou prints). Retorna texto = erro.
+function readEvidence(body: unknown): { links: string[]; files: PreparedFile[] } | string {
+  const evidence = evidenceSchema.safeParse((body as { evidence?: unknown })?.evidence ?? {});
+  if (!evidence.success) return evidence.error.issues[0].message;
+  const files = prepareFiles(evidence.data.files);
+  if (typeof files === 'string') return files;
+  return { links: evidence.data.links, files };
+}
+
+// Entregas com o nome do setor e a lista de etapas (com a situação do último envio)
 const SELECT_DELIVERIES = `
   SELECT d.*, s.name AS sector_name,
     COALESCE((
@@ -50,9 +73,19 @@ const SELECT_DELIVERIES = `
         'title', st.title,
         'due_date', st.due_date,
         'completed', st.completed,
-        'completed_at', st.completed_at
+        'completed_at', st.completed_at,
+        'review_status', ls.status,
+        'review_note', ls.review_note,
+        'submitted_at', CASE WHEN ls.status = 'pending' THEN ls.created_at END
       ) ORDER BY st.position)
       FROM delivery_stages st
+      LEFT JOIN LATERAL (
+        SELECT ss.status, ss.review_note, ss.created_at
+        FROM stage_submissions ss
+        WHERE ss.delivery_stage_id = st.id
+        ORDER BY ss.created_at DESC
+        LIMIT 1
+      ) ls ON TRUE
       WHERE st.delivery_id = d.id
     ), '[]') AS stages
   FROM deliveries d
@@ -119,51 +152,6 @@ async function resolveAssignment(user: AuthUser, data: DeliveryBaseInput): Promi
     return { ok: false, status: 400, message: 'O responsável não pertence ao setor escolhido.' };
   }
   return { ok: true, assignedToId: assignee.id, assignedToName: assignee.name, sectorId: data.sector_id };
-}
-
-// Recalcula o percentual da entrega a partir das etapas concluídas
-async function recalcProgress(client: PoolClient, deliveryId: string) {
-  const result = await client.query(
-    `UPDATE deliveries d
-     SET progress = sub.pct,
-         completed = (sub.pct = 100),
-         completed_at = CASE WHEN sub.pct = 100 THEN COALESCE(d.completed_at, NOW()) ELSE NULL END
-     FROM (
-       SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE completed) / COUNT(*))::int AS pct
-       FROM delivery_stages
-       WHERE delivery_id = $1
-     ) sub
-     WHERE d.id = $1
-     RETURNING d.*;`,
-    [deliveryId]
-  );
-  return result.rows[0];
-}
-
-// Conclui uma etapa, recalcula o percentual e registra no histórico
-async function completeStage(
-  client: PoolClient,
-  deliveryId: string,
-  stageId: string,
-  user: AuthUser,
-  note: LaunchNote
-) {
-  await client.query(
-    `UPDATE delivery_stages
-     SET completed = TRUE, completed_at = NOW(), completed_by_id = $1
-     WHERE id = $2;`,
-    [user.id, stageId]
-  );
-
-  const delivery = await recalcProgress(client, deliveryId);
-
-  await client.query(
-    `INSERT INTO delivery_updates (delivery_id, stage_id, author_id, author_name, done_text, missing_text, progress)
-     VALUES ($1, $2, $3, $4, $5, $6, $7);`,
-    [deliveryId, stageId, user.id, user.name, note.done_text, note.missing_text || null, delivery.progress]
-  );
-
-  return delivery;
 }
 
 // Pessoas para quem o usuário pode atribuir (LIDER: o seu setor; ADMIN: o setor escolhido ou todos)
@@ -248,7 +236,7 @@ router.get('/deliveries', async (req, res) => {
   }
 });
 
-// Criar entrega: etapa única ou 5/10 etapas (ou atividade não atribuída, já concluída)
+// Criar entrega: etapa única ou várias etapas (ou atividade não atribuída, enviada para validação)
 router.post('/deliveries', async (req, res) => {
   const user = req.user!;
   const parsed = createDeliverySchema.safeParse(req.body);
@@ -275,6 +263,18 @@ router.post('/deliveries', async (req, res) => {
   if (first_update && assignment.assignedToId !== user.id) {
     res.status(400).json({ message: 'Só é possível lançar uma atividade sua.' });
     return;
+  }
+
+  // "Outra atividade" de quem não é ADMIN: precisa de evidência e vai para validação
+  const review = Boolean(first_update) && needsReview(user);
+  let evidence: { links: string[]; files: PreparedFile[] } = { links: [], files: [] };
+  if (review) {
+    const read = readEvidence(req.body);
+    if (typeof read === 'string') {
+      res.status(400).json({ message: read });
+      return;
+    }
+    evidence = read;
   }
 
   // Sem etapas informadas: etapa única, com o título e o prazo da entrega
@@ -317,13 +317,26 @@ router.post('/deliveries', async (req, res) => {
     }
 
     if (first_update) {
-      delivery = await completeStage(client, delivery.id, stageIds[0], user, first_update);
+      if (review) {
+        await createSubmission(
+          client,
+          { kind: 'delivery', deliveryId: delivery.id, stageId: stageIds[0] },
+          user,
+          first_update,
+          evidence.links,
+          evidence.files
+        );
+        await writeFiles(evidence.files);
+      } else {
+        delivery = await completeDeliveryStage(client, delivery.id, stageIds[0], user, first_update, null);
+      }
     }
 
     await client.query('COMMIT');
     res.status(201).json(delivery);
   } catch (error) {
     await client.query('ROLLBACK');
+    await removeFiles(evidence.files);
     if (isForeignKeyError(error)) {
       res.status(400).json({ message: 'O setor informado não existe.' });
       return;
@@ -335,7 +348,7 @@ router.post('/deliveries', async (req, res) => {
   }
 });
 
-// Lançar: concluir uma etapa da entrega, contando o que foi feito
+// Lançar uma etapa: quem não é ADMIN envia para validação (com evidência)
 router.post('/deliveries/:id/updates', async (req, res) => {
   const user = req.user!;
   const id = deliveryIdSchema.safeParse(req.params.id);
@@ -348,6 +361,17 @@ router.post('/deliveries/:id/updates', async (req, res) => {
   if (!parsed.success) {
     sendValidationError(res, parsed.error);
     return;
+  }
+
+  const review = needsReview(user);
+  let evidence: { links: string[]; files: PreparedFile[] } = { links: [], files: [] };
+  if (review) {
+    const read = readEvidence(req.body);
+    if (typeof read === 'string') {
+      res.status(400).json({ message: read });
+      return;
+    }
+    evidence = read;
   }
 
   const client = await pool.connect();
@@ -385,11 +409,31 @@ router.post('/deliveries/:id/updates', async (req, res) => {
       return;
     }
 
-    const delivery = await completeStage(client, id.data, parsed.data.stage_id, user, parsed.data);
+    if (review) {
+      await createSubmission(
+        client,
+        { kind: 'delivery', deliveryId: id.data, stageId: parsed.data.stage_id },
+        user,
+        parsed.data,
+        evidence.links,
+        evidence.files
+      );
+      await writeFiles(evidence.files);
+      await client.query('COMMIT');
+      res.status(201).json({ status: 'pending' });
+      return;
+    }
+
+    const delivery = await completeDeliveryStage(client, id.data, parsed.data.stage_id, user, parsed.data, null);
     await client.query('COMMIT');
     res.status(201).json(delivery);
   } catch (error) {
     await client.query('ROLLBACK');
+    await removeFiles(evidence.files);
+    if (isUniqueError(error)) {
+      res.status(409).json({ message: 'Esta etapa já está aguardando validação.' });
+      return;
+    }
     console.error('Erro ao lançar etapa:', error);
     res.status(500).json({ message: 'Erro ao lançar a etapa.' });
   } finally {
@@ -397,7 +441,7 @@ router.post('/deliveries/:id/updates', async (req, res) => {
   }
 });
 
-// Histórico de lançamentos de uma entrega
+// Histórico de lançamentos (aprovados) de uma entrega
 router.get('/deliveries/:id/updates', async (req, res) => {
   const user = req.user!;
   const id = deliveryIdSchema.safeParse(req.params.id);
@@ -570,7 +614,7 @@ router.put('/deliveries/:id', requirePermission('deliveries:edit'), async (req, 
   }
 });
 
-// Excluir entrega (etapas e histórico vão junto, pelo ON DELETE CASCADE)
+// Excluir entrega (etapas, histórico e envios vão junto, pelo ON DELETE CASCADE)
 router.delete('/deliveries/:id', requirePermission('deliveries:delete'), async (req, res) => {
   const user = req.user!;
   const id = deliveryIdSchema.safeParse(req.params.id);

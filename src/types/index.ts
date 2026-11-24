@@ -38,6 +38,7 @@ export interface ProjectStage {
   completedAt: string | null;
   notesCount: number;
 }
+
 // Observação registrada numa etapa de projeto
 export interface ProjectStageNote {
   id: string;
@@ -81,7 +82,9 @@ export type DeliverySituation =
   | 'CONCLUIDO'
   | 'CONCLUIDO COM ATRASO';
 
-// 6.1 Etapa de uma entrega (1, 5 ou 10 por entrega)
+// 6.1 Etapa de uma entrega
+export type ReviewStatus = 'pending' | 'approved' | 'returned';
+
 export interface DeliveryStage {
   id: string;
   position: number;
@@ -89,9 +92,12 @@ export interface DeliveryStage {
   dueDate: string;
   completed: boolean;
   completedAt?: string;
+  reviewStatus?: ReviewStatus; // situação do último envio para validação
+  reviewNote?: string;         // motivo, quando devolvida
+  submittedAt?: string;        // data do envio pendente
 }
 
-// 6.2 Entrega
+// 6.2 Entrega (ou etapa de projeto vista como entrega)
 export interface Delivery {
   id: string;
   title: string;
@@ -109,9 +115,18 @@ export interface Delivery {
   completedAt?: string;
   commentsCount: number;
   createdAt?: string;
+  kind: 'delivery' | 'project_stage';
+  projectId?: string;   // só nas etapas de projeto
+  projectName?: string; // só nas etapas de projeto
+  // Validação do gestor (calculado a partir das etapas)
+  inReview: boolean;       // alguma etapa aguardando validação
+  awaitingReview: boolean; // TUDO o que faltava já foi enviado
+  canLaunch: boolean;      // ainda há etapa para lançar
+  submittedAt?: string;    // envio pendente mais recente
+  returnedNote?: string;   // motivo, se alguma etapa foi devolvida
 }
 
-// 6.3 Lançamento no histórico de uma entrega
+// 6.3 Lançamento (aprovado) no histórico de uma entrega
 export interface DeliveryUpdate {
   id: string;
   authorName: string;
@@ -129,6 +144,30 @@ export interface Assignee {
   name: string;
   role: UserRole;
   sectorId: string | null;
+}
+
+// 6.5 Envio para validação (com evidência)
+export interface Submission {
+  id: string;
+  kind: 'delivery' | 'project_stage';
+  deliveryId: string | null;
+  status: ReviewStatus;
+  authorName: string;
+  doneText: string;
+  missingText?: string;
+  links: string[];
+  files: { id: string; mime: string; size: number }[];
+  reviewerName?: string;
+  reviewNote?: string;
+  reviewedAt?: string;
+  createdAt: string;
+  itemTitle: string;
+  stageTitle?: string;
+  stagePosition?: number;
+  stageCount?: number;
+  projectName?: string;
+  dueDate: string;
+  sectorName?: string;
 }
 
 // 9. Setores da empresa
@@ -151,4 +190,3 @@ export interface TeamMember {
   managerName: string | null;
   createdAt: string;
 }
-

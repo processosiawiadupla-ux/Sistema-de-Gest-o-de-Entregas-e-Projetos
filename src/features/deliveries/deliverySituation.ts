@@ -26,7 +26,8 @@ function daysBetween(from: string, to: string): number {
 
 // Decide a situação de uma entrega
 export function getDeliverySituation(
-  delivery: Pick<Delivery, 'dueDate' | 'completed' | 'completedAt'>,
+  delivery: Pick<Delivery, 'dueDate' | 'completed' | 'completedAt'> &
+    Partial<Pick<Delivery, 'awaitingReview' | 'submittedAt'>>,
   today: string = todayISO(),
 ): DeliverySituation {
   if (delivery.completed) {
@@ -34,6 +35,12 @@ export function getDeliverySituation(
       ? toLocalISODate(new Date(delivery.completedAt))
       : today
     return completedDay <= delivery.dueDate ? 'CONCLUIDO' : 'CONCLUIDO COM ATRASO'
+  }
+
+  // Tudo o que faltava já foi enviado: o prazo conta pela data do envio, não pela aprovação
+  if (delivery.awaitingReview && delivery.submittedAt) {
+    const sentDay = toLocalISODate(new Date(delivery.submittedAt))
+    return sentDay <= delivery.dueDate ? 'NO PRAZO' : 'ATRASADO'
   }
 
   const daysLeft = daysBetween(today, delivery.dueDate)

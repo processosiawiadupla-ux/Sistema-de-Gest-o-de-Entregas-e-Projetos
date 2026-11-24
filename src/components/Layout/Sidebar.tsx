@@ -2,6 +2,7 @@ import React from 'react';
 import {
   LayoutDashboard,
   ClipboardList,
+  ClipboardCheck,
   CalendarDays,
   Users,
   FolderKanban,
@@ -17,6 +18,8 @@ import {
 import { WiaLogo } from '../Wialogo';
 import { useAuth } from '../../context/AuthContext';
 import { can } from '../../lib/permissions';
+import { usePendingReviews } from '../../features/deliveries/useDeliveries';
+
 
 interface SidebarProps {
   currentTab: string;
@@ -30,6 +33,7 @@ interface NavItem {
   label: string;
   Icon: LucideIcon;
   visible: boolean;
+  badge?: number;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -40,6 +44,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const { user, logout } = useAuth();
   const role = user?.role;
+  const { data: pendingReviews = [] } = usePendingReviews();
+  const reviewCount = pendingReviews.length;
 
   // Seções do menu: cada item aparece só para quem tem a permissão
   const sections: { title?: string; items: NavItem[] }[] = [
@@ -49,6 +55,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       items: [
         { tab: 'minhas-entregas', label: 'Minhas entregas', Icon: ClipboardList, visible: true },
         { tab: 'entregas-equipe', label: 'Entregas', Icon: CalendarDays, visible: can(role, 'deliveries:view_team') },
+        {
+          tab: 'validar',
+          label: 'Validar',
+          Icon: ClipboardCheck,
+          visible: role === 'ADMIN' || role === 'LIDER' || reviewCount > 0,
+          badge: reviewCount,
+        },
         { tab: 'rotinas', label: 'Rotinas', Icon: Repeat, visible: can(role, 'deliveries:assign') },
       ],
     },
@@ -120,7 +133,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     }`}
                   >
                     <item.Icon className="w-4 h-4" />
-                    <span>{item.label}</span>
+                    <span className="flex-1 text-left">{item.label}</span>
+                    {item.badge ? (
+                      <span className="min-w-5 h-5 px-1.5 rounded-full bg-blue-600 text-white text-[11px] font-bold flex items-center justify-center">
+                        {item.badge}
+                      </span>
+                    ) : null}
                   </button>
                 ))}
               </div>

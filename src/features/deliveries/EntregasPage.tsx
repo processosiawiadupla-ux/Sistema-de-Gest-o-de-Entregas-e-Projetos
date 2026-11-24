@@ -12,6 +12,9 @@ import {
   ChevronDown,
   ChevronUp,
   Send,
+  FolderKanban,
+  Hourglass,
+  Undo2,
   type LucideIcon,
 } from 'lucide-react';
 import type { DeliverySituation } from '../../types';
@@ -24,7 +27,7 @@ import { ProgressBar } from './ProgressBar';
 import { DeliveryDetails } from './DeliveryDetails';
 import { LaunchModal } from './LaunchModal';
 
-type FilterOption = 'PENDENTES' | 'TODOS' | 'NO PRAZO' | 'EM RISCO' | 'ATRASADO' | 'CONCLUIDOS';
+type FilterOption = 'PENDENTES' | 'CORRECAO' | 'TODOS' | 'NO PRAZO' | 'EM RISCO' | 'ATRASADO' | 'CONCLUIDOS';
 
 const SITUATION_STYLES: Record<DeliverySituation, { label: string; className: string; Icon: LucideIcon }> = {
   'NO PRAZO': { label: 'No prazo', className: 'bg-blue-50 text-blue-700 border-blue-200', Icon: Clock },
@@ -36,6 +39,7 @@ const SITUATION_STYLES: Record<DeliverySituation, { label: string; className: st
 
 const FILTERS: { value: FilterOption; label: string; activeClass: string }[] = [
   { value: 'PENDENTES', label: 'Pendentes', activeClass: 'bg-blue-700 text-white' },
+  { value: 'CORRECAO', label: 'Correção pendente', activeClass: 'bg-rose-700 text-white' },
   { value: 'TODOS', label: 'Todos', activeClass: 'bg-slate-900 text-white' },
   { value: 'NO PRAZO', label: 'No prazo', activeClass: 'bg-blue-600 text-white' },
   { value: 'EM RISCO', label: 'Em risco', activeClass: 'bg-amber-500 text-white' },
@@ -43,12 +47,13 @@ const FILTERS: { value: FilterOption; label: string; activeClass: string }[] = [
   { value: 'CONCLUIDOS', label: 'Concluídos', activeClass: 'bg-emerald-600 text-white' },
 ];
 
-function matchesFilter(situation: DeliverySituation, filter: FilterOption): boolean {
-  const isDone = situation === 'CONCLUIDO' || situation === 'CONCLUIDO COM ATRASO';
+function matchesFilter(d: { situation: DeliverySituation; returnedNote?: string }, filter: FilterOption): boolean {
+  const isDone = d.situation === 'CONCLUIDO' || d.situation === 'CONCLUIDO COM ATRASO';
   if (filter === 'TODOS') return true;
   if (filter === 'PENDENTES') return !isDone;
   if (filter === 'CONCLUIDOS') return isDone;
-  return situation === filter;
+  if (filter === 'CORRECAO') return Boolean(d.returnedNote);
+  return d.situation === filter;
 }
 
 export const EntregasPage: React.FC<{ scope: DeliveryScope }> = ({ scope }) => {
@@ -57,6 +62,7 @@ export const EntregasPage: React.FC<{ scope: DeliveryScope }> = ({ scope }) => {
   const isAdmin = user?.role === 'ADMIN';
 
   // O backend já limita: ADMIN recebe todas, LIDER só as do setor dele
+  // (a lista traz as entregas e as etapas de projeto juntas)
   const { data: deliveries = [], isLoading, isError, error, refetch } = useDeliveries(scope);
 
   const [personFilter, setPersonFilter] = useState(''); // '' = todas as pessoas
@@ -88,21 +94,33 @@ export const EntregasPage: React.FC<{ scope: DeliveryScope }> = ({ scope }) => {
   );
 
   const counts = useMemo(() => {
-    const result: Record<FilterOption, number> = { PENDENTES: 0, TODOS: 0, 'NO PRAZO': 0, 'EM RISCO': 0, ATRASADO: 0, CONCLUIDOS: 0 };
+    const result: Record<FilterOption, number> = {
+      PENDENTES: 0,
+      CORRECAO: 0,
+      TODOS: 0,
+      'NO PRAZO': 0,
+      'EM RISCO': 0,
+      ATRASADO: 0,
+      CONCLUIDOS: 0,
+    };
     for (const d of byPerson) {
       for (const f of FILTERS) {
-        if (matchesFilter(d.situation, f.value)) result[f.value] += 1;
+        if (matchesFilter(d, f.value)) result[f.value] += 1;
       }
     }
     return result;
   }, [byPerson]);
 
   const term = searchTerm.trim().toLowerCase();
-  const filtered = byPerson.filter((d) => {
-    const matchesSearch =
-      !term || [d.title, d.assignedToName, d.sector].some((value) => value.toLowerCase().includes(term));
-    return matchesSearch && matchesFilter(d.situation, filter);
-  });
+  const filtered = byPerson
+    .filter((d) => {
+      const matchesSearch =
+        !term ||
+        [d.title, d.assignedToName, d.sector, d.projectName ?? ''].some((value) => value.toLowerCase().includes(term));
+      return matchesSearch && matchesFilter(d, filter);
+    })
+    // Minhas entregas: as devolvidas para correção aparecem primeiro
+    .sort((a, b) => (isTeam ? 0 : Number(Boolean(b.returnedNote)) - Number(Boolean(a.returnedNote))));
 
   const title = isTeam ? 'Entregas' : 'Minhas entregas';
   const subtitle = isTeam
@@ -146,7 +164,9 @@ export const EntregasPage: React.FC<{ scope: DeliveryScope }> = ({ scope }) => {
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"
-            placeholder={isTeam ? 'Pesquisar por título, responsável ou setor...' : 'Pesquisar nas minhas atividades...'}
+            placeholder={
+              isTeam ? 'Pesquisar por título, responsável, setor ou projeto...' : 'Pesquisar nas minhas atividades...'
+            }
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-10 pr-4 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -202,9 +222,13 @@ export const EntregasPage: React.FC<{ scope: DeliveryScope }> = ({ scope }) => {
           const style = SITUATION_STYLES[d.situation];
           const expanded = expandedId === d.id;
           const doneStages = d.stages.filter((s) => s.completed).length;
+          const returned = Boolean(d.returnedNote);
 
           return (
-            <li key={d.id} className="bg-white border border-slate-200 rounded-2xl shadow-sm">
+            <li
+              key={d.id}
+              className={`bg-white border rounded-2xl shadow-sm ${returned ? 'border-rose-300' : 'border-slate-200'}`}
+            >
               <div className="p-4 flex flex-col lg:flex-row lg:items-center gap-4">
                 <div className="flex-1 min-w-0 space-y-2">
                   <div className="flex flex-wrap items-center gap-2">
@@ -215,6 +239,18 @@ export const EntregasPage: React.FC<{ scope: DeliveryScope }> = ({ scope }) => {
                       <style.Icon className="w-3.5 h-3.5" />
                       {style.label}
                     </span>
+                    {d.inReview && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border bg-indigo-50 text-indigo-700 border-indigo-200">
+                        <Hourglass className="w-3.5 h-3.5" />
+                        Em validação
+                      </span>
+                    )}
+                    {returned && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border bg-rose-600 text-white border-rose-600">
+                        <Undo2 className="w-3.5 h-3.5" />
+                        Correção pendente
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
@@ -232,20 +268,36 @@ export const EntregasPage: React.FC<{ scope: DeliveryScope }> = ({ scope }) => {
                       <Calendar className="w-3.5 h-3.5" />
                       Prazo {formatDate(d.dueDate)}
                     </span>
-                    <span>{d.stageCount === 1 ? 'Etapa única' : `${doneStages} de ${d.stageCount} etapas`}</span>
+                    {d.kind === 'project_stage' ? (
+                      <span className="inline-flex items-center gap-1 text-violet-700 font-medium">
+                        <FolderKanban className="w-3.5 h-3.5" />
+                        Projeto: {d.projectName}
+                      </span>
+                    ) : (
+                      <span>{d.stageCount === 1 ? 'Etapa única' : `${doneStages} de ${d.stageCount} etapas`}</span>
+                    )}
                   </div>
+
+                  {/* Motivo da devolução, bem visível */}
+                  {returned && (
+                    <div className="text-sm text-rose-800 bg-rose-50 border border-rose-200 rounded-xl px-3.5 py-2.5">
+                      <strong>Devolvida para correção:</strong> {d.returnedNote}
+                    </div>
+                  )}
 
                   <ProgressBar value={d.progress} className="max-w-md" />
                 </div>
 
                 <div className="flex gap-2 shrink-0">
-                  {!isTeam && !d.completed && (
+                  {!isTeam && !d.completed && d.canLaunch && (
                     <button
                       onClick={() => setLaunchFor(d.id)}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-xs font-medium text-white cursor-pointer"
+                      className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-white cursor-pointer ${
+                        returned ? 'bg-rose-600 hover:bg-rose-500' : 'bg-blue-600 hover:bg-blue-500'
+                      }`}
                     >
                       <Send className="w-3.5 h-3.5" />
-                      Lançar
+                      {returned ? 'Corrigir e reenviar' : 'Lançar'}
                     </button>
                   )}
                   <button

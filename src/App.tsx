@@ -9,6 +9,7 @@ import { EquipePage } from './features/team/EquipePage';
 import { ProjetosPage } from './features/projects/ProjetosPage';
 import { EntregasPage } from './features/deliveries/EntregasPage';
 import { RotinasPage } from './features/deliveries/RotinasPage';
+import { ValidarPage } from './features/deliveries/ValidarPage';
 import { RelatoriosPage } from './features/reports/RelatoriosPage';
 import { PerfilPage } from './features/profile/PerfilPage';
 import { ConfiguracoesPage } from './features/settings/ConfiguracoesPage';
@@ -66,6 +67,9 @@ const MainLayout: React.FC = () => {
         return <EntregasPage key="mine" scope="mine" />;
       case 'entregas-equipe':
         return canViewTeam ? <EntregasPage key="team" scope="team" /> : <DashboardPage />;
+      case 'validar':
+        // O backend já devolve só o que esta pessoa pode validar
+        return <ValidarPage />;
       case 'rotinas':
         return can(user.role, 'deliveries:assign') ? <RotinasPage /> : <DashboardPage />;
       case 'projetos':

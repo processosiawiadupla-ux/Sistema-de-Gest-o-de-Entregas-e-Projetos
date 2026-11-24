@@ -15,7 +15,8 @@ import meRoutes from './routes/meRoutes.js';
 import passwordResetRoutes from './routes/passwordResetRoutes.js';
 import recurrenceRoutes from './routes/recurrenceRoutes.js';
 import { startRecurrenceScheduler } from './jobs/recurrences.js';
-
+import projectTaskRoutes from './routes/projectTaskRoutes.js';
+import reviewRoutes from './routes/reviewRoutes.js';
 // ATENÇÃO: o import do env precisa ser sempre o PRIMEIRO,
 // senão a conexão com o banco é criada antes de o .env ser lido.
 
@@ -25,7 +26,7 @@ const app = express();
 app.set('trust proxy', 1);
 
 // Middlewares
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
 
 // 1. Rotas públicas: login, sair, conferir link e criar senha
@@ -45,6 +46,8 @@ app.use('/api', deliveryRoutes);
 app.use('/api', sectorRoutes);
 app.use('/api', teamRoutes);
 app.use('/api', recurrenceRoutes);
+app.use('/api', projectTaskRoutes);
+app.use('/api', reviewRoutes);
 
 // Iniciar servidor, banco, e-mail e a verificação automática das rotinas
 app.listen(env.PORT, async () => {
@@ -53,3 +56,4 @@ app.listen(env.PORT, async () => {
   await verifyMailer();
   startRecurrenceScheduler();
 });
+
