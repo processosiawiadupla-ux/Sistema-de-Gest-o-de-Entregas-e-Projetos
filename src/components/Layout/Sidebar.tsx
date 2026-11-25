@@ -53,7 +53,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       title: 'Entregas',
       items: [
-        { tab: 'minhas-entregas', label: 'Minhas entregas', Icon: ClipboardList, visible: true },
+        { tab: 'minhas-entregas', label: 'Minha Agenda', Icon: ClipboardList, visible: true },
         { tab: 'entregas-equipe', label: 'Entregas', Icon: CalendarDays, visible: can(role, 'deliveries:view_team') },
         {
           tab: 'validar',

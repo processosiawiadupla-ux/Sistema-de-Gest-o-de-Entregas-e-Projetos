@@ -122,7 +122,7 @@ export const EntregasPage: React.FC<{ scope: DeliveryScope }> = ({ scope }) => {
     // Minhas entregas: as devolvidas para correção aparecem primeiro
     .sort((a, b) => (isTeam ? 0 : Number(Boolean(b.returnedNote)) - Number(Boolean(a.returnedNote))));
 
-  const title = isTeam ? 'Entregas' : 'Minhas entregas';
+  const title = isTeam ? 'Entregas' : 'Minha Agenda';
   const subtitle = isTeam
     ? isAdmin
       ? 'Entregas de todos os setores.'
