@@ -245,6 +245,7 @@ export interface SubmissionRow {
   missing_text: string | null;
   links: string[];
   status: 'pending' | 'approved' | 'returned';
+  reviewer_id: string | null;
   reviewer_name: string | null;
   review_note: string | null;
   reviewed_at: Date | null;

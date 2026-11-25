@@ -216,7 +216,7 @@ export interface LaunchInput extends LaunchNote {
 }
 
 export type SubmissionTarget = { deliveryId: string } | { projectStageId: string }
-
+export type ReviewFilter = 'pending' | 'approved' | 'returned' | 'all'
 function toNotePayload(note: LaunchNote) {
   return { done_text: note.doneText, missing_text: note.missingText || null }
 }
@@ -319,8 +319,8 @@ export const deliveryService = {
 
   // ---------- Validação do gestor ----------
 
-  async getPendingReviews(): Promise<Submission[]> {
-    const response = await api.get<SubmissionDTO[]>('/reviews')
+   async getReviews(status: ReviewFilter = 'pending'): Promise<Submission[]> {
+    const response = await api.get<SubmissionDTO[]>('/reviews', { params: { status } })
     return response.data.map(toSubmission)
   },
 

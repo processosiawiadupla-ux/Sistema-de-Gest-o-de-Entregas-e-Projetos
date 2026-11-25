@@ -16,6 +16,7 @@ import {
 
 const router = Router();
 const idSchema = z.uuid();
+const statusSchema = z.enum(['pending', 'approved', 'returned', 'all']).default('pending');
 const returnSchema = z.object({
   note: z
     .string('Explique o motivo da devolução.')
@@ -24,14 +25,28 @@ const returnSchema = z.object({
     .max(1000, 'O motivo pode ter no máximo 1000 caracteres.'),
 });
 
-// Fila "Para validar": envios pendentes que este usuário pode aprovar
+// Tela Validar: ?status=pending (padrão) | approved | returned | all
+// Pendentes: o que este usuário pode aprovar.
+// Histórico: o que ele poderia validar ou que ele mesmo validou (ADMIN vê tudo).
 router.get('/reviews', async (req, res) => {
   const user = req.user!;
+  const status = statusSchema.safeParse(req.query.status);
+  if (!status.success) {
+    res.status(400).json({ message: 'Filtro inválido.' });
+    return;
+  }
+
+  const isPending = status.data === 'pending';
+  const where = status.data === 'all' ? '' : 'WHERE sub.status = $1';
+  const params = status.data === 'all' ? [] : [status.data];
+  const order = isPending ? 'sub.created_at ASC' : 'COALESCE(sub.reviewed_at, sub.created_at) DESC LIMIT 300';
+
   try {
-    const result = await pool.query<SubmissionRow>(
-      `${SUBMISSION_CONTEXT} WHERE sub.status = 'pending' ORDER BY sub.created_at ASC;`,
+    const result = await pool.query<SubmissionRow>(`${SUBMISSION_CONTEXT} ${where} ORDER BY ${order};`, params);
+    const visible = result.rows.filter((row) =>
+      row.status === 'pending' ? canReview(user, row) : canReview(user, row) || row.reviewer_id === user.id,
     );
-    res.json(result.rows.filter((row) => canReview(user, row)).map(toPublic));
+    res.json(visible.map(toPublic));
   } catch (error) {
     console.error('Erro ao listar validações:', error);
     res.status(500).json({ message: 'Erro ao listar as validações.' });
@@ -101,7 +116,13 @@ router.post('/reviews/:id/approve', async (req, res) => {
     if (row.delivery_stage_id && row.delivery_id) {
       await completeDeliveryStage(client, row.delivery_id, row.delivery_stage_id, author, note, row.created_at);
     } else if (row.project_stage_id) {
-      await completeProjectStage(client, row.project_stage_id, row.created_at, author, noteText(`Concluída (aprovada por ${user.name}).`, note));
+      await completeProjectStage(
+        client,
+        row.project_stage_id,
+        row.created_at,
+        author,
+        noteText(`Concluída (aprovada por ${user.name}).`, note),
+      );
     }
 
     await client.query(

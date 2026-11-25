@@ -5,6 +5,7 @@ import {
   type DeliveryScope,
   type LaunchInput,
   type LaunchNote,
+  type ReviewFilter,
   type SubmissionTarget,
 } from '../../services/deliveryService'
 import type { Assignee, Delivery, DeliveryUpdate, ProjectStageNote, Submission } from '../../types'
@@ -56,13 +57,18 @@ export function useAssignees(sectorId: string, enabled = true) {
 
 // ---------- Validação ----------
 
-// Fila "Para validar" (atualiza sozinha a cada minuto, para o contador do menu)
-export function usePendingReviews() {
+// Tela Validar: pendentes, aceitas, em correção ou todas
+export function useReviews(status: ReviewFilter) {
   return useQuery<Submission[], ApiError>({
-    queryKey: [...REVIEWS_KEY, 'pending'],
-    queryFn: deliveryService.getPendingReviews,
-    refetchInterval: 60_000,
+    queryKey: [...REVIEWS_KEY, status],
+    queryFn: () => deliveryService.getReviews(status),
+    refetchInterval: status === 'pending' ? 60_000 : false,
   })
+}
+
+// Pendentes (contador do menu e da aba)
+export function usePendingReviews() {
+  return useReviews('pending')
 }
 
 // Histórico de envios de uma entrega ou etapa de projeto
